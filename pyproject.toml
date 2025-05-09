@@ -3,11 +3,11 @@ requires = ["flit_core >=2,<4"]
 build-backend = "flit_core.buildapi"
 
 [project]
-name =  "py-project-toml"
+name =  "faire"
 authors = [
-    {name = "Daniel Ciborowski", email = "dciborow@microsoft.com"},
+    {name = "Basile Pinsard", email = "basile.pinsard@gmail.com"},
 ]
-description = "Sample Python Project for creating a new Python Module"
+description = "Faire (do/make) is to make FAIR data operations"
 readme = "README.md"
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -17,7 +17,8 @@ classifiers = [
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11"
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12"
 ]
 requires-python = ">=3.8.1"
 dynamic = ["version"]
@@ -47,12 +48,12 @@ test = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/microsoft/python-package-template/tree/main#readme"
-Source = "https://github.com/microsoft/python-package-template"
-Tracker = "https://github.com/microsoft/python-package-template/issues"
+Documentation = "https://github.com/UNFmontreal/faire/tree/main#readme"
+Source = "https://github.com/UNFmontreal/faire"
+Tracker = "https://github.com/UNFmontreal/faire/issues"
 
 [tool.flit.module]
-name = "python_package"
+name = "faire"
 
 [tool.bandit]
 exclude_dirs = ["build","dist","tests","scripts"]
