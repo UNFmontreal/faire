@@ -1,0 +1,93 @@
+{
+	"bids": {
+		"heudiconv": {
+			"container": {
+				"repository": "https://github.com/ReproNim/containers.git",
+				"datalad-container": "nipy-heudiconv"
+			},
+			"sources" : {
+				"sourcedata/dicoms/": {
+						"path": "sourcedata/dicoms/study",
+						"required_paths": ["{sample_path}"]
+				}
+			},
+			"setup_script": [
+
+			],
+			"run_script": [
+				"python "
+			],
+			"reports":[]
+		},
+		"phys2bids": {
+			"container": {
+				"repository": "https://github.com/ReproNim/containers.git",
+				"datalad-container": "physiopy/phys2bids"
+			}
+			"sources" : [
+				"sourcedata/biopac/": {
+						"path":  "sourcedata/biopac",
+						"required_paths": ["{sample_path}"]
+					}
+			],
+			"setup_script": [
+
+			],
+			"run_script": [
+				"python "
+			],
+			"reports":[]
+		}
+	},
+	"derivatives/fmriprep":{
+		"fmriprep":{
+			"container": {
+				"repository": "https://github.com/ReproNim/containers.git",
+				"datalad-container": "bids-fmriprep"
+			},
+			"sources": {
+				"sourcedata/bids": {
+					"path":"bids",
+					"required_paths": [
+						"{sample_path}/func/*_bold.nii.gz",
+						"{sample_path}/anat/*_T1w.nii.gz"
+					],
+					"optional_paths": [
+						"{sample_path}/func/*_sbref.nii.gz",
+						"{sample_path}/anat/*_T2w.nii.gz",
+						"{sample_path}/anat/*_FLAIR.nii.gz"
+					]
+				},
+				"sourcedata/smriprep": {
+					"path": "derivatives/smriprep",
+					"required_paths": ["{sample_path}/"]
+				},
+				"sourcedata/templateflow": "https://github.com/templateflow/templateflow.git"
+			},
+			"setup_script": [
+
+			],
+			"run_script": [
+				"python "
+			],
+			"reports":[""]
+		}
+	},
+	"derivatives/tedana":{
+		"tedana":{
+			"container": {
+				"repository": "${GITLAB_URL}/${NI_DATAOPS_GITLAB_ROOT}/bids-containers",
+				"datalad-container": "tedana"
+			},
+			"sources": {
+				"sourcedata/fmriprep": "derivatives/smriprep"
+			},
+			"setup_script": [
+
+			],
+			"run_script": [
+				"python "
+			]
+		}
+	}
+}
