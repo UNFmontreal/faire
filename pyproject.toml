@@ -22,8 +22,17 @@ requires-python = ">=3.10"
 dynamic = ["version"]
 
 dependencies = [
-    "typer"
+    "typer",
+    "python-gitlab",
+    "PyGithub",
+    "bids",
+    "datalad",
+    "datalad-next",
+    "datalad-container"
 ]
+
+[project.scripts]
+faire = "faire.cli.main:app"
 
 [project.optional-dependencies]
 spark = [
