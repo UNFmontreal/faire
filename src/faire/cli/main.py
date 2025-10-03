@@ -22,9 +22,9 @@ def auto(
 ds = dlad.Dataset(".")
 
 @app.callback()
-def main(verbose: bool = False):
+def main(verbose: bool = False) -> None:
     """
-    Faire: juste faire le
+    Faire: "juste faire le"
     """
     pass
 

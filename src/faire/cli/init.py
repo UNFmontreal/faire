@@ -2,6 +2,7 @@ import typer
 import pathlib
 from typing import Optional
 import datalad.api as dlad
+from ..model import pipeline
 from ..git_hosts import DEFAULT_GITHOST
 
 app = typer.Typer()
@@ -9,10 +10,7 @@ app = typer.Typer()
 @app.command()
 def init(
     path:pathlib.Path,
-    storage:bool = True,
-    template_url:str = None,
-    extra_storages:Optional[str] = None,  #eg. for sensitive data
-    procedures: Optional[list[str]] = None,
+    study_dataset: pipeline.StudyDataset
 ):
     """
     initializes a dataset
@@ -22,7 +20,7 @@ def init(
         dlad.install(source=template_url, dest='.')
     # create datalad
     ds = dlad.create(".", force=True)
-    ds.run_procedure("cfg_nidataops")
+    #ds.run_procedure("cfg_nidataops")
 
     # create repo on githost
     if DEFAULT_GITHOST:
@@ -33,6 +31,6 @@ def init(
     # setup storage
 
     # install sourcedata datasets
-    
+
     # run setup:
     # - setup default container
