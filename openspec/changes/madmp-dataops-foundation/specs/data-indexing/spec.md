@@ -98,7 +98,7 @@ The heuristic MAY provide a setup callback. When it does, the indexer SHALL call
 - **THEN** no data is recorded, nothing is pushed, and the command fails reporting the error
 
 ### Requirement: Archived storage of files
-The indexer SHALL be able to record a sample's files packed into one or more archives, when the source dataset's template so configures, while keeping the individual files' paths addressable from the dataset.
+The indexer SHALL be able to record a sample's files packed into one or more archives on storage, through git-annex archive special remotes, when the source dataset's template so configures, while keeping the individual files' paths addressable from the dataset.
 
 #### Scenario: Sample of thousands of small files
 - **WHEN** archiving is configured and a sample of many small files is indexed

@@ -45,6 +45,7 @@
 - [ ] 5.6 Implement the GitLab renderer producing a child pipeline from a plan (one job per task and check, `needs` order, serialisation per branch, runner tags per site, declared artifacts, advisory checks allowed to fail, native downstream trigger jobs) and verify the four generated-pipeline scenarios on the test instance
 - [ ] 5.7 Implement `trigger` through the platform interface and verify the portable trigger with the fake and recovery from a lost trigger by re-planning
 - [ ] 5.8 Configure protection of the tool's branch name patterns at `init` so sample branches can read task secrets, and verify an arbitrary branch cannot
+- [ ] 5.8a Require at least one human approval plus passing blocking checks to merge into `dev` and `main` at `init`, and verify a green unapproved pull request cannot be merged
 - [ ] 5.9 Verify the single-job fallback leaves the same branch state as the generated pipeline
 
 ## 6. Processing rules
@@ -70,7 +71,7 @@
 - [ ] 7.2 Add a reference heuristic to the reference source dataset template and verify dry-run prints its decisions and changes nothing
 - [ ] 7.3 Implement `index` for direct storage (fresh clone, placement, save, sensitive and pilot marks, commit record with entities and heuristic revision) and verify the commit record and that a pilot sample lands on `pilot`
 - [ ] 7.4 Implement per-sample subdataset creation (platform repository, remotes with the parent's wanted rules, setup callback run once before data with its own commit, parent's file handling by default, registration in the parent) reusing the bootstrap remote setup, and verify the four callback scenarios with the fake platform
-- [ ] 7.5 Implement archived storage of files and verify a single file can still be obtained by path from a fresh clone
+- [ ] 7.5 Implement archived storage of files through git-annex archive special remotes, configured by the setup callback, and verify a single file can still be obtained by path from a fresh clone
 - [ ] 7.6 Implement the push order (content, subdataset, parent) with failure handling and verify no history is pushed when storage is unavailable
 - [ ] 7.7 Verify repeatability: the same directory indexed twice makes no commit, and an interrupted run completes without duplication
 - [ ] 7.8 Implement credential handling from the environment for off-platform use and verify a missing platform credential fails before any change

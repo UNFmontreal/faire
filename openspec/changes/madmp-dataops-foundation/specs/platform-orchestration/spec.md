@@ -29,6 +29,13 @@ Bootstrap SHALL configure every dataset repository so that `dev`, `pilot` and `m
 - **WHEN** a dataset repository has been created by bootstrap
 - **THEN** its `dev` and `main` branches are protected and a direct push by a developer is refused
 
+### Requirement: Human approval to merge
+Bootstrap SHALL configure every dataset repository so that a pull request into `dev` or `main` can be merged only after at least one human approval and passing blocking checks. Automatic merging SHALL NOT be enabled by the tool.
+
+#### Scenario: Green pull request without approval
+- **WHEN** all blocking checks of a pull request pass and nobody has approved it
+- **THEN** the pull request cannot be merged
+
 ### Requirement: CI configuration from templates and from the ma-DMP
 The entry pipeline definition SHALL come from the dataset's template and live in the dataset repository. Bootstrap SHALL set on the platform the CI variables those pipelines need that derive from the ma-DMP, including the identifiers of source and downstream datasets and the names of the secrets used by distributions.
 

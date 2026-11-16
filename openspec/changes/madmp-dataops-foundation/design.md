@@ -147,7 +147,7 @@ Containers are not copied at release: collections such as ReproNim containers, o
 *Alternative:* pushing used container images with each release. Rejected per discussion: it duplicates shared collections and blurs who is responsible for them.
 
 ### D27. Generic indexer with a Python heuristic
-`faire index <dir>` clones the site's source dataset, imports the heuristic module from that clone, and applies its optional functions (entities, pilot, keep, sensitive, placement, subdataset name, subdataset setup). The setup callback receives the freshly created subdataset and runs before any file is added, typically to write `.gitattributes`; its result is saved as its own commit. Without it the parent's `.gitattributes` is copied. It then saves with DataLad, optionally through an archive mechanism so that thousands of small files become a few annexed archives while paths stay addressable, sets annex metadata for sensitive and pilot content before any copy, pushes content, then the subdataset, then the parent. Per-sample subdatasets are created with the same remote setup code as bootstrap, which is the main reuse argument. Indexed samples go straight to `dev` or `pilot` of the source dataset, as in the proof of concept where review happens on the standardized dataset; the push event carries the sample entities to the downstream trigger. The heuristic interface is expected to grow with new modalities, so every function is optional with a default.
+`faire index <dir>` clones the site's source dataset, imports the heuristic module from that clone, and applies its optional functions (entities, pilot, keep, sensitive, placement, subdataset name, subdataset setup). The setup callback receives the freshly created subdataset and runs before any file is added, typically to write `.gitattributes`; its result is saved as its own commit. Without it the parent's `.gitattributes` is copied. It then saves with DataLad, optionally through git-annex's archive special remotes so that thousands of small files become a few bulk archives on storage while individual paths stay addressable (the setup callback configures it per source dataset; source streams are stored once and read once, when converted to standard data, so they are mostly dormant and archive bulk suits them), sets annex metadata for sensitive and pilot content before any copy, pushes content, then the subdataset, then the parent. Per-sample subdatasets are created with the same remote setup code as bootstrap, which is the main reuse argument. Indexed samples go straight to `dev` or `pilot` of the source dataset, as in the proof of concept where review happens on the standardized dataset; the push event carries the sample entities to the downstream trigger. The heuristic interface is expected to grow with new modalities, so every function is optional with a default.
 *Alternatives:* leaving ingestion entirely to external tools (duplicates git, storage and platform handling in each); a declarative mapping file instead of Python (too weak for metadata extraction from instrument formats).
 
 ### D28. Instruments anchored on `technical_resource`
@@ -180,6 +180,10 @@ faire test --list / --check <id>, faire trigger
 ### D31. One `sync` command
 `faire sync --stage <stage>` fulfils every distribution bound to the stage: `datalad push` / `git annex copy` for one-way hosts, and the merge, resolve, push exchange of D19 for the hub. One command keeps the mental model simple (a distribution is a distribution) and gives indexing, CI jobs and people the same entry point; `--distribution` narrows a run.
 
+### D32. Human approval of merges
+A pull request is merged only after a human approval, in addition to passing blocking checks; the platform configuration requires at least one approval on `dev` and `main`. Automatic merging when checks and quality metrics pass and there are no conflicts is a possible later policy and is not part of this change.
+*Alternative:* automatic merge on green checks now. Deferred: quality metrics and their thresholds are not yet defined.
+
 ### D30. Native CI engines, not an external one
 Considered using one external CI engine across all platforms (Woodpecker, Jenkins, Buildkite, or a portable pipeline engine such as Dagger inside any CI). Not adopted: it would move logs, artifacts and status away from the pull request, add a service and a second secret store to operate at each site, and none of them is better suited to HPC runners than the platforms' own. Because the plan is neutral, an external engine would only be one more renderer if that changes. This assessment is from general knowledge and was not verified against current versions of those tools.
 
@@ -208,9 +212,8 @@ Not applicable: nothing exists to migrate. The existing GitLab proof of concept 
 
 ## Open Questions
 
-- Whether merging a pull request needs human approval in addition to passing checks, or whether that is a per-template policy.
+- Later: the policy, quality metrics and thresholds under which pull requests could be merged automatically (D32).
 - Whether Forgejo and Gitea Actions support a matrix computed by a previous job, to be checked before an Actions-style renderer is planned.
 - The exact signature of the heuristic functions, to be refined with each new modality.
-- Which archive mechanism to use for indexed files (annexed archives with extracted keys, or archive special remotes).
 - The exact format of the protocol expectations derived from pilots, which is left to each template's protocol tool.
 - Which long-term hosts to support first for archival.
