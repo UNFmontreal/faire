@@ -157,6 +157,28 @@ An undeclared instrument does not block indexing: the indexer creates the instan
 Listing the containers a derived dataset uses as technical resources, written back by the tool, is a natural follow-up and is not part of this change.
 *Alternatives:* concrete devices in site configuration with only a role in the ma-DMP (keeps the ma-DMP stable but hides the instruments from the plan); refusing undeclared instruments outright (cleaner but cumbersome when a scanner is swapped).
 
+### D29. Plan, render, run
+CI integration is three layers, only the second being platform-specific:
+
+```
+faire plan              -> neutral task list (JSON): id, rule, sample, site, order, artifacts
+faire ci render         -> platform pipeline from the list
+faire run --task <id>   -> one task in one job; `faire run --all` runs the list in-process
+faire test --list / --check <id>, faire trigger
+```
+
+- **State-based planning.** A task is due when the inputs recorded in the rule's last run record for that sample differ from the current ones (make-like). This avoids depending on push events (unknown previous commit on new branches and force pushes, missed events), makes reprocessing and "waiting samples" ordinary cases, and stops loops: after a task commits, the next plan finds it up to date.
+- **Rules.** Each dataset has a list of rules. Source-triggered rules produce a sample branch and pull request; content-triggered rules (t2wrecon, defacing, gradient unwarping in the proof of concept) commit to the pull request branch. Order on a branch is explicit in the rule file; tasks run consecutively and each sees the previous state. Optional steps simply drop out of the plan, so no rule keys on another's outputs. To prevent re-triggering, a rule's recorded inputs are compared ignoring changes made by itself or by rules ordered after it.
+- **GitLab renderer.** A planning job writes a child pipeline as an artifact and triggers it (`strategy: depend`) so jobs appear in the branch or merge request pipeline. Order uses `needs`, serialisation on a branch uses `resource_group`, site routing uses runner tags, declared artifact paths become `artifacts:paths` with `when: always`, advisory checks use `allow_failure`. Downstream datasets are started with native multi-project trigger jobs. Child pipelines nest two levels, which plan, tasks and downstream trigger fit within.
+- **Actions-style renderer (later).** GitHub, Forgejo and Gitea share the Actions workflow syntax, so one further renderer would cover all three: a planning job outputs the list and a matrix job fans out over it. A matrix cannot order its entries, so ordered tasks of one branch run inside one job; GitHub caps a matrix at 256 entries; downstream triggering uses `faire trigger` through the API.
+- **Fallback.** One static job running `faire run --all` then `faire test`, for any platform. No parallelism, per-task logs or retries.
+- **Pull request listing.** Paths a rule declares for listing are written by `faire run` into a pull request comment it owns and updates, linking to the job artifact or to the file on the branch.
+- **Secrets on sample branches.** GitLab exposes protected variables only on protected branches, so `init` protects the tool's branch name patterns.
+*Alternative:* one hand-written job per rule in each template. Rejected: duplication across templates and no fan-out per sample.
+
+### D30. Native CI engines, not an external one
+Considered using one external CI engine across all platforms (Woodpecker, Jenkins, Buildkite, or a portable pipeline engine such as Dagger inside any CI). Not adopted: it would move logs, artifacts and status away from the pull request, add a service and a second secret store to operate at each site, and none of them is better suited to HPC runners than the platforms' own. Because the plan is neutral, an external engine would only be one more renderer if that changes. This assessment is from general knowledge and was not verified against current versions of those tools.
+
 ## Risks / Trade-offs
 
 - [The profile depends on fields of v1.3 that were read from the README, not the schema files] → the first task checks `dataset.related_identifier` and additional-property rules against the published schema before the profile schema is written.
@@ -171,6 +193,8 @@ Listing the containers a derived dataset uses as technical resources, written ba
 - [The heuristic is arbitrary Python executed with storage and platform credentials] → it is only loaded from the source dataset's own versioned content, changes to it go through pull requests, and dry-run mode shows its decisions.
 - [Indexed data enters `dev` of the source dataset without review] → accepted; source data is site-local and review takes place on the first derived dataset.
 - [A wrong instrument identifier from the heuristic silently creates a spurious instance] → an undeclared instrument always produces a visible pull request and a warning, and its samples trigger nothing until that pull request is reviewed and merged.
+- [State-based planning must read run records for every sample on each update, which may be slow on large datasets] → cache the per-sample state in the dataset and restrict planning to samples touched since the cached revision.
+- [Ignoring changes by later rules could hide a real need to rerun an earlier rule] → manual reprocessing remains available for that case.
 - [STAMPED conformance is by design, not measured] → D26 records the mapping; running the STAMPED checklist against the example project is a documentation task.
 - [Externally managed containers may disappear after a release] → their persistence is their owners' responsibility; the release check only proves they were retrievable at release time and the report records location and revision.
 
@@ -181,6 +205,7 @@ Not applicable: nothing exists to migrate. The existing GitLab proof of concept 
 ## Open Questions
 
 - Whether merging a pull request needs human approval in addition to passing checks, or whether that is a per-template policy.
+- Whether Forgejo and Gitea Actions support a matrix computed by a previous job, to be checked before an Actions-style renderer is planned.
 - The exact signature of the heuristic functions, to be refined with each new modality.
 - Which archive mechanism to use for indexed files (annexed archives with extracted keys, or archive special remotes).
 - The exact format of the protocol expectations derived from pilots, which is left to each template's protocol tool.

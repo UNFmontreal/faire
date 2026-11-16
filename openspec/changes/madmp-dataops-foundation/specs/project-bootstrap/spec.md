@@ -5,7 +5,7 @@ Turns a profile-conformant ma-DMP into a working project: one DataLad dataset pe
 ## ADDED Requirements
 
 ### Requirement: Bootstrap from a ma-DMP
-The tool SHALL create, from a valid ma-DMP, one DataLad dataset for each dataset in the plan. Bootstrap SHALL refuse to run on a ma-DMP that fails profile validation.
+The tool SHALL provide an `init` command, referred to in this specification as bootstrap, that creates, from a valid ma-DMP, one DataLad dataset for each dataset in the plan. Bootstrap SHALL refuse to run on a ma-DMP that fails profile validation.
 
 #### Scenario: Fresh project
 - **WHEN** bootstrap is run on a valid ma-DMP declaring three datasets

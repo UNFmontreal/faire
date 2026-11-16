@@ -30,7 +30,7 @@ A sample SHALL enter an instrument source dataset by being indexed into the inst
 - **THEN** a pull request from that branch to `dev` is open and identifies sample `S`
 
 ### Requirement: Review checks and inline processing
-An open pull request SHALL run the checks and inline processing steps defined by the dataset's template, such as compliance checks, quality control and de-identification. Inline processing results SHALL be committed to the pull request's branch with their provenance recorded. The pull request SHALL NOT be mergeable while a required check fails.
+An open pull request SHALL run the content-triggered rules and the checks the dataset declares, as specified by the processing-rules capability, such as reconstruction, de-identification, compliance checks and quality control. Inline processing results SHALL be committed to the pull request's branch with their provenance recorded. The pull request SHALL NOT be mergeable while a required check fails.
 
 #### Scenario: Failed compliance check
 - **WHEN** a required check fails on a pull request

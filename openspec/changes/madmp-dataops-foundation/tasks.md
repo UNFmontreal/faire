@@ -19,7 +19,7 @@
 - [ ] 3.1 Define the site configuration format (identifier, host mapping, runner routing) and its loader, and verify an unmapped site-dependent host is reported by name
 - [ ] 3.2 Create a minimal reference dataset template (copier) with one registered container, a processing rule file, `.gitattributes` union-merge entries, one blocking check and one advisory protocol check, and verify rendering yields a dataset where `datalad containers-list` shows the container
 - [ ] 3.3 Create a reference study template defining the study superdataset layout, the ma-DMP location and the site configuration location, and verify rendering yields a valid DataLad dataset
-- [ ] 3.4 Add thin pipeline definitions to the dataset template that only call the tool (checks, `run`, downstream trigger, `distribute`, `sync`) and verify they pass the platform's pipeline linter and contain no pipeline logic
+- [ ] 3.4 Add to the dataset template the single entry pipeline definition (plan, render, child pipeline) and the single-job fallback, and verify both pass the platform's pipeline linter and contain no pipeline logic
 
 ## 4. Bootstrap and reconcile (local)
 
@@ -39,21 +39,30 @@
 
 - [ ] 5.1 Define the platform interface and an in-memory fake, and verify the fake passes a shared conformance test suite
 - [ ] 5.2 Implement the GitLab backend (grouping, repositories, branch and tag protection, CI variables, pull requests, cross-repository pipeline trigger) and verify the conformance suite against a test GitLab instance
-- [ ] 5.3 Connect bootstrap to the platform (repositories created, subdataset URLs pointing at them, variables for downstream datasets, site and secret names) and verify cloning the study superdataset from the platform resolves all subdatasets
+- [ ] 5.3 Connect `init` to the platform (repositories created, subdataset URLs pointing at them, variables for downstream datasets, site and secret names) and verify cloning the study superdataset from the platform resolves all subdatasets
 - [ ] 5.4 Implement the missing-secrets report and the capability check before changes, and verify each with the fake
 - [ ] 5.5 Configure the automation identity for pipeline commits and verify authorship on a pipeline-made commit
+- [ ] 5.6 Implement the GitLab renderer producing a child pipeline from a plan (one job per task and check, `needs` order, serialisation per branch, runner tags per site, declared artifacts, advisory checks allowed to fail, native downstream trigger jobs) and verify the four generated-pipeline scenarios on the test instance
+- [ ] 5.7 Implement `trigger` through the platform interface and verify the portable trigger with the fake and recovery from a lost trigger by re-planning
+- [ ] 5.8 Configure protection of the tool's branch name patterns at `init` so sample branches can read task secrets, and verify an arbitrary branch cannot
+- [ ] 5.9 Verify the single-job fallback leaves the same branch state as the generated pipeline
 
 ## 6. Processing rules
 
-- [ ] 6.1 Implement the rule file model and entity-based pattern resolution, and verify resolution, a missing entity and an unknown container each behave as specified
-- [ ] 6.2 Implement `run --sample` (sample branch, source pointer update, retrieval of declared inputs only, `datalad containers-run`, save) and verify the run record and that unrelated samples' content was not retrieved
-- [ ] 6.3 Implement the silent skip on unmet required inputs and verify the dataset is unchanged and the exit status is zero
-- [ ] 6.4 Implement storage credential handling from named secrets and verify a missing secret fails early, is named, and no value is printed
-- [ ] 6.5 Implement result push to `review` storage and the repository, then pull request creation or update with a switch to skip it, and verify a fresh clone of the branch can retrieve all outputs
-- [ ] 6.6 Verify a local run and a CI run of the same sample and source revisions produce the same tree
-- [ ] 6.7 Implement rerun for a sample already on `dev` and verify only that sample's outputs change
-- [ ] 6.8 Implement job routing to the sample's site of origin and verify on a two-site fixture that the other site's runner is not used
-- [ ] 6.9 Verify an accepted result can be re-executed with `datalad rerun` in a fresh clone and that the record identifies the source revisions, container version and rule version
+- [ ] 6.1 Implement the rule file model (identifier, trigger, container, command, inputs, required inputs, outputs, order, artifacts, listed files, checks with blocking or advisory mark) and entity-based pattern resolution, and verify resolution, a missing entity and an unknown container each behave as specified
+- [ ] 6.2 Implement state-based `plan` for source-triggered rules from run records and verify the new-sample, nothing-to-do, missed-event and resource-update scenarios, with identical output in and out of CI
+- [ ] 6.3 Implement planning of content-triggered rules with explicit order and the rule that own or later results do not re-trigger, and verify the sequence, optional-step and both re-triggering scenarios
+- [ ] 6.4 Implement `run --task` for source-triggered rules (sample branch, source pointer update, retrieval of declared inputs only, `datalad containers-run`, save) and verify the run record and that unrelated samples' content was not retrieved
+- [ ] 6.5 Implement `run --task` for content-triggered rules committing to the triggering branch, and `run --all`, and verify the branch state equals that of separate jobs
+- [ ] 6.6 Implement the silent skip on unmet required inputs and verify the dataset is unchanged and the exit status is zero
+- [ ] 6.7 Implement storage credential handling from named secrets and verify a missing secret fails early, is named, and no value is printed
+- [ ] 6.8 Implement result push to `review` storage and the repository, then pull request creation or update with a switch to skip it, and verify a fresh clone of the branch can retrieve all outputs
+- [ ] 6.9 Implement collection of declared job artifacts (including after failure) and the tool-owned pull request listing of declared files, and verify logs are kept from a failed task and a report link appears and is updated on rerun
+- [ ] 6.10 Implement `test --list` and `test --check` and verify listing, running one check alone, and that checks run on the state left by the last content-triggered task
+- [ ] 6.11 Verify a local run and a CI run of the same task and source revisions produce the same tree
+- [ ] 6.12 Implement rerun for a sample already on `dev` and verify only that sample's outputs change
+- [ ] 6.13 Implement site assignment of tasks in the plan and verify on a two-site fixture that the other site's runner is not used
+- [ ] 6.14 Verify an accepted result can be re-executed with `datalad rerun` in a fresh clone and that the record identifies the source revisions, container version and rule version
 
 ## 7. Data indexing
 
