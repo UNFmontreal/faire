@@ -1,0 +1,107 @@
+## Purpose
+
+Defines the profile of the RDA DMP Common Standard that a project ma-DMP must follow so that tooling can bootstrap, operate and publish the project's datasets from it, while the document stays readable by standard-only tools.
+
+## ADDED Requirements
+
+### Requirement: Conformance to the base standard
+A profile-conformant ma-DMP SHALL be a valid document under the RDA DMP Common Standard version 1.3 JSON schema. All profile-specific information SHALL be carried in a single namespaced extension property on the entities it extends, so that removing that property leaves a valid standard document with no other change.
+
+#### Scenario: Standard-only validation
+- **WHEN** a profile-conformant ma-DMP is validated against the unmodified RDA DMP Common Standard v1.3 schema
+- **THEN** validation succeeds
+
+#### Scenario: Base standard violation
+- **WHEN** a ma-DMP is missing a field the base standard requires
+- **THEN** profile validation fails and reports the location of the missing field
+
+### Requirement: Dataset identity
+Each dataset in the ma-DMP SHALL have an identifier that is unique within the document and stable across ma-DMP revisions. The profile SHALL use this identifier for all references between datasets.
+
+#### Scenario: Duplicate identifier
+- **WHEN** two datasets in the ma-DMP carry the same identifier
+- **THEN** validation fails and names the duplicated identifier
+
+### Requirement: Dataset template declaration
+Each dataset SHALL declare, in the extension, the git template it is created from: the template's repository location, a pinned version of that template, and the parameter values used to render it.
+
+#### Scenario: Missing template
+- **WHEN** a dataset has no template declaration
+- **THEN** validation fails and names the dataset
+
+#### Scenario: Unpinned template
+- **WHEN** a dataset's template declaration gives a repository location without a pinned version
+- **THEN** validation fails and names the dataset
+
+### Requirement: Provenance links between datasets
+A dataset derived from other datasets of the project SHALL declare each source with the standard's `related_identifier` using the relation type `IsDerivedFrom` and the source dataset's identifier. The set of all such links in a ma-DMP SHALL form a directed acyclic graph. A dataset with no such link is a root dataset holding collected data.
+
+#### Scenario: Source not in the plan
+- **WHEN** a dataset declares `IsDerivedFrom` with an identifier that the project marks as internal but that matches no dataset in the ma-DMP
+- **THEN** validation fails and names both the dataset and the unresolved identifier
+
+#### Scenario: Cycle
+- **WHEN** the provenance links form a cycle
+- **THEN** validation fails and lists the datasets in the cycle
+
+#### Scenario: Multiple sources
+- **WHEN** a dataset declares `IsDerivedFrom` links to two datasets of the plan
+- **THEN** validation succeeds and both are reported as its sources
+
+### Requirement: Pipeline version is part of dataset identity
+A dataset SHALL represent the output of one version of its processing pipeline. Output of a different pipeline version SHALL be declared as a separate dataset with its own identifier.
+
+#### Scenario: New pipeline version
+- **WHEN** a project adopts a new version of a pipeline while keeping the output of the previous one
+- **THEN** the ma-DMP contains two datasets with the same sources and different identifiers and template versions
+
+### Requirement: Lifecycle stage of a distribution
+Each distribution SHALL declare, in the extension, the lifecycle stage at which it is fulfilled. The stage SHALL be one of `collection`, `review`, `accepted`, `release`, `archival`.
+
+#### Scenario: Unknown stage
+- **WHEN** a distribution declares a stage outside the allowed values
+- **THEN** validation fails and reports the distribution and the invalid value
+
+#### Scenario: Several distributions at different stages
+- **WHEN** a dataset declares one distribution at stage `accepted` and another at stage `release`
+- **THEN** validation succeeds
+
+### Requirement: File filters of a distribution
+A distribution MAY declare, in the extension, include and exclude filters that select files by path pattern and by file metadata. A distribution without filters SHALL cover all files of the dataset.
+
+#### Scenario: Exclusion by metadata
+- **WHEN** a distribution declares an exclude filter on files whose metadata marks them as sensitive
+- **THEN** validation succeeds and the filter is reported as part of that distribution
+
+#### Scenario: Malformed filter
+- **WHEN** a filter expression cannot be parsed
+- **THEN** validation fails and reports the distribution and the expression
+
+### Requirement: Host transfer parameters without secrets
+A distribution's host MAY declare, in the extension, the transfer method and the parameters needed to reach it. The ma-DMP SHALL NOT contain credentials; a parameter that requires a secret SHALL name the secret instead of holding its value.
+
+#### Scenario: Secret by reference
+- **WHEN** a host needs an access token
+- **THEN** the ma-DMP holds only the name under which the platform stores that token
+
+#### Scenario: Inline credential
+- **WHEN** a host parameter declared as secret holds a literal value instead of a name
+- **THEN** validation fails and reports the host
+
+### Requirement: Release records
+The extension SHALL allow each dataset to carry a list of releases. Each release record SHALL hold a release identifier, a date, the dataset revision released and the persistent identifiers minted for it. Release records SHALL be written by tooling, and a ma-DMP with no release records SHALL be valid.
+
+#### Scenario: Dataset with two releases
+- **WHEN** a dataset has been released twice
+- **THEN** its extension lists two release records in release order, each with its own revision and identifiers
+
+### Requirement: Validation command
+The tool SHALL provide a command that validates a ma-DMP against the base standard and the profile, reports every violation with its location in the document, and exits with a non-zero status when any violation exists.
+
+#### Scenario: Valid document
+- **WHEN** the command is run on a profile-conformant ma-DMP
+- **THEN** it reports success and exits with status zero
+
+#### Scenario: Several violations
+- **WHEN** the command is run on a ma-DMP with three independent violations
+- **THEN** all three are reported in a single run
