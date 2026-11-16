@@ -1,0 +1,47 @@
+# Reference dataset template (minimal, domain-agnostic).
+_subdirectory: template
+_templates_suffix: .jinja
+
+dataset_id:
+  type: str
+  help: Identifier of the dataset in the ma-DMP
+
+container_url:
+  type: str
+  help: Image of the reference container, pinned by digest
+  default: docker://busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+
+container_version:
+  type: str
+  help: Exact version of the image (digest or tag with digest)
+  default: 1.36.1@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+
+container_call_fmt:
+  type: str
+  help: Command format used to run the container
+  default: "singularity exec {img} {cmd}"
+
+source_dataset:
+  type: str
+  help: Identifier of the triggering source dataset of the reference rule
+  default: ""
+
+dataset_title:
+  type: str
+  help: Title of the dataset
+  default: ""
+
+license:
+  type: str
+  help: Resolvable license reference of the dataset
+  default: ""
+
+license_spdx:
+  type: str
+  help: SPDX identifier of the license, when it has one
+  default: ""
+
+derived_from:
+  type: yaml
+  help: Paths under sourcedata/ the dataset is derived from
+  default: []

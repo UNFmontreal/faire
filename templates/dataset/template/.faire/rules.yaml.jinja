@@ -1,0 +1,25 @@
+# Processing rules and checks of dataset {{ dataset_id }}.
+# Rules run in the order listed. Pipeline logic lives here, never in CI definitions.
+rules:
+  - id: process
+    trigger:
+      source: "{{ source_dataset }}"      # source-triggered: results arrive as a pull request
+    container: tool
+    command: "sh -c 'cat {inputs} > {outputs}'"
+    inputs:
+      - pattern: "sourcedata/{{ source_dataset }}/{subject}/{session}/*.txt"
+        required: true
+    outputs:
+      - "{subject}/{session}/processed.txt"
+    artifacts:
+      - ".faire/logs/"
+    listing:
+      - "{subject}/{session}/processed.txt"
+
+checks:
+  - id: layout
+    command: "test -f .faire/rules.yaml"
+    blocking: true
+  - id: protocol
+    command: "true"                       # replace with the dataset's protocol-conformance tool
+    blocking: false

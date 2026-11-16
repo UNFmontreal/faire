@@ -1,0 +1,28 @@
+# {{ dataset_title or dataset_id }}
+
+Dataset `{{ dataset_id }}`, managed with [DataLad](https://www.datalad.org) and described in the
+study's machine-actionable data management plan (ma-DMP).
+
+## Derived from
+{% if derived_from %}{% for path in derived_from %}
+- `{{ path }}`{% endfor %}
+
+Each is a subdataset: run `datalad get -n -r sourcedata` to install them.
+{% else %}
+Nothing: this dataset holds collected data.
+{% endif %}
+
+## Get the content
+
+    datalad clone <url of this dataset> && cd {{ dataset_id }}
+    datalad get <path>
+
+## Re-execute the results
+
+Every result was produced by `datalad containers-run`, so its command, container and inputs are
+recorded in the history. Re-execute one with `datalad rerun <commit>`; processing rules are in
+`.faire/rules.yaml`, containers in `.faire/containers.yaml`.
+
+## License
+
+{{ license }} (see `LICENSE`).

@@ -1,0 +1,6 @@
+# Changes to the ma-DMP are validated on every merge request; require this pipeline to pass
+# before merging. FAIRE_IMAGE is a CI variable set when the project is bootstrapped.
+validate-madmp:
+  image: $FAIRE_IMAGE
+  script:
+    - faire validate madmp.json

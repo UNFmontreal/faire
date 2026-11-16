@@ -16,24 +16,24 @@
 
 ## 3. Sites and reference templates
 
-- [ ] 3.1 Define the site configuration format (identifier, host mapping, runner routing) and its loader, and verify an unmapped site-dependent host is reported by name
-- [ ] 3.2 Create a minimal reference dataset template (copier) with one registered container, a processing rule file, `.gitattributes` union-merge entries, one blocking check and one advisory protocol check, and verify rendering yields a dataset where `datalad containers-list` shows the container
-- [ ] 3.3 Create a reference study template defining the study superdataset layout, the ma-DMP location and the site configuration location, and verify rendering yields a valid DataLad dataset
+- [x] 3.1 Define the site configuration format (identifier, host mapping, runner routing) and its loader, and verify an unmapped site-dependent host is reported by name
+- [x] 3.2 Create a minimal reference dataset template (copier) with one registered container, a processing rule file, `.gitattributes` union-merge entries, one blocking check and one advisory protocol check, and verify rendering yields a dataset where `datalad containers-list` shows the container
+- [x] 3.3 Create a reference study template defining the study superdataset layout, the ma-DMP location and the site configuration location, and verify rendering yields a valid DataLad dataset
 - [ ] 3.4 Add to the dataset template the single entry pipeline definition (plan, render, child pipeline) and the single-job fallback, and verify both pass the platform's pipeline linter and contain no pipeline logic
 
 ## 4. Bootstrap and reconcile (local)
 
-- [ ] 4.1 Implement computing the creation plan from a ma-DMP and a site in provenance order, including one instance per declared instrument named `<site>_<instrument>`, and verify the order, instance names and `sourcedata/<stream type>/<site>_<instrument>` paths on a fixture with one instrument feeding two streams
-- [ ] 4.2 Implement dataset creation from its template with the recorded ma-DMP entry and `dev`, `pilot` and `main` branches, and verify the record matches and a template fetch failure leaves no partial dataset
-- [ ] 4.3 Implement installing triggering and resource sources under `sourcedata/` and verify one-source, two-source, resource and root fixtures
-- [ ] 4.4 Implement study superdataset creation with the ma-DMP and site configuration tracked and all datasets registered, and verify a fresh clone installs every dataset
-- [ ] 4.5 Implement creation of storage remotes for `collection`, `review` and `accepted` distributions with wanted rules from the filters, and verify with directory special remotes that a general and a sensitive-only remote get the right rules and no `release` remote exists
-- [ ] 4.6 Implement idempotence and dry-run, and verify a second run makes no commit and dry-run changes nothing
-- [ ] 4.7 Implement additive reconcile (new dataset, new distribution) and verify existing datasets' content is untouched
-- [ ] 4.8 Implement detection and reporting of non-additive differences and unplanned datasets with a non-zero exit, and verify with changed-sources and removed-dataset fixtures
+- [x] 4.1 Implement computing the creation plan from a ma-DMP and a site in provenance order, including one instance per declared instrument named `<site>_<instrument>`, and verify the order, instance names and `sourcedata/<stream type>/<site>_<instrument>` paths on a fixture with one instrument feeding two streams
+- [x] 4.2 Implement dataset creation from its template with the recorded ma-DMP entry and `dev`, `pilot` and `main` branches, and verify the record matches and a template fetch failure leaves no partial dataset
+- [x] 4.3 Implement installing triggering and resource sources under `sourcedata/` and verify one-source, two-source, resource and root fixtures
+- [x] 4.4 Implement study superdataset creation with the ma-DMP and site configuration tracked and all datasets registered, and verify a fresh clone installs every dataset
+- [x] 4.5 Implement creation of storage remotes for `collection`, `review` and `accepted` distributions with wanted rules from the filters, and verify with directory special remotes that a general and a sensitive-only remote get the right rules and no `release` remote exists
+- [x] 4.6 Implement idempotence and dry-run, and verify a second run makes no commit and dry-run changes nothing
+- [x] 4.7 Implement additive reconcile (new dataset, new distribution) and verify existing datasets' content is untouched
+- [x] 4.8 Implement detection and reporting of non-additive differences and unplanned datasets with a non-zero exit, and verify with changed-sources and removed-dataset fixtures
 - [ ] 4.9 Add ma-DMP validation as a required check on study superdataset pull requests and verify an invalid edit cannot be merged
-- [ ] 4.10 Write the license (with SPDX identifier) and a generated entry-point README into each created dataset and verify both are present in a clone taken without the study superdataset
-- [ ] 4.11 Implement additive handling of a new instrument (new instance, pull request registering it in derived datasets) and verify existing instances are untouched
+- [x] 4.10 Write the license (with SPDX identifier) and a generated entry-point README into each created dataset and verify both are present in a clone taken without the study superdataset
+- [x] 4.11 Implement additive handling of a new instrument (new instance, pull request registering it in derived datasets) and verify existing instances are untouched
 
 ## 5. Platform orchestration
 

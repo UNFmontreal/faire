@@ -1,0 +1,12 @@
+# Reference study template: layout of the study superdataset.
+_subdirectory: template
+_templates_suffix: .jinja
+
+study_name:
+  type: str
+  help: Name of the study
+
+layout_pattern:
+  type: str
+  help: Where each dataset is registered in the study superdataset; {id} is the dataset identifier
+  default: "{id}"

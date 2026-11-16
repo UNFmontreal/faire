@@ -10,12 +10,10 @@ from typing import Any
 
 import jsonschema
 
-from faire import filters
+from faire import filters, secrets
 from faire.model import Dataset, Dmp
 
 _UNPINNED = {"main", "master", "head", "latest", "dev", "develop", "trunk"}
-_SECRET_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
-_SECRET_KEY = re.compile(r"(token|password|passwd|secret|api[_-]?key|credential)", re.I)
 
 
 @dataclass(frozen=True)
@@ -156,7 +154,7 @@ def semantic_violations(document: Any) -> list[Violation]:
             # secrets
             if host is not None:
                 for param, secret in host.secrets.items():
-                    if not _SECRET_NAME.match(secret):
+                    if not secrets.is_secret_name(secret):
                         out.append(
                             Violation(
                                 f"{loc}/host/faire/secrets/{param}",
@@ -164,7 +162,7 @@ def semantic_violations(document: Any) -> list[Violation]:
                             )
                         )
                 for key in host.parameters:
-                    if _SECRET_KEY.search(key) and key not in host.secrets:
+                    if secrets.looks_like_credential_key(key) and key not in host.secrets:
                         out.append(
                             Violation(
                                 f"{loc}/host/faire/parameters/{key}",

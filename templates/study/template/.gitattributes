@@ -1,0 +1,5 @@
+*.md annex.largefiles=nothing
+madmp.json annex.largefiles=nothing
+sites/** annex.largefiles=nothing
+.faire/** annex.largefiles=nothing
+.gitlab-ci.yml annex.largefiles=nothing

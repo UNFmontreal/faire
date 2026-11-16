@@ -63,6 +63,11 @@ class Host(_View):
         return self.raw.get("title", "")
 
     @property
+    def key(self) -> str:
+        """Name by which site configurations refer to this host: its identifier, else its title."""
+        return self.host_id or self.title
+
+    @property
     def host_id(self) -> str | None:
         ids = self.raw.get("host_id") or []
         return ids[0]["identifier"] if ids else None

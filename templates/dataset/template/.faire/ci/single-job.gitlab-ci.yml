@@ -1,0 +1,10 @@
+# Fallback for platforms without pipeline generation: one job runs every due task and then
+# the checks, in order. Use it by pointing the project's CI configuration file at this path.
+faire:
+  image: $FAIRE_IMAGE
+  script:
+    - faire run --all
+    - faire test
+  artifacts:
+    paths: [.faire/logs/]
+    when: always

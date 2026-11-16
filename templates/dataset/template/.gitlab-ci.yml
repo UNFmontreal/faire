@@ -1,0 +1,23 @@
+# Entry pipeline. It holds no pipeline logic: `faire` plans what is due, renders the jobs and
+# the generated child pipeline runs them. Everything else lives in .faire/rules.yaml.
+# FAIRE_IMAGE is a CI variable set when the project is bootstrapped.
+stages: [plan, run]
+
+plan:
+  stage: plan
+  image: $FAIRE_IMAGE
+  script:
+    - faire plan --json > plan.json
+    - faire ci render --platform gitlab plan.json > child-pipeline.yml
+  artifacts:
+    paths: [plan.json, child-pipeline.yml]
+    when: always
+
+run:
+  stage: run
+  needs: [plan]
+  trigger:
+    include:
+      - artifact: child-pipeline.yml
+        job: plan
+    strategy: depend

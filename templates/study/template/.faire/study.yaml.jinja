@@ -1,0 +1,7 @@
+# Layout of the study superdataset, independent of the provenance links between datasets.
+study: "{{ study_name }}"
+madmp: madmp.json          # the ma-DMP, the source of truth
+sites: sites               # one non-secret YAML file per site
+layout:
+  default: "{{ layout_pattern }}"
+  overrides: {}            # dataset identifier -> path, for any dataset needing its own place
