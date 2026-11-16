@@ -139,16 +139,47 @@ The ma-DMP SHALL declare, once for the study, the ordered list of entity names t
 - **WHEN** the ma-DMP declares no sample entity
 - **THEN** validation fails
 
-### Requirement: Site-scoped datasets
-The extension SHALL allow a dataset to be marked as site-scoped, meaning one instance of it exists per site. A site-scoped dataset SHALL NOT have a distribution to the hub or to any `release`-stage host. A dataset derived from a site-scoped dataset has every site's instance as a source.
+### Requirement: Instruments declared as technical resources
+Each instrument or other system that produces a study's collected data SHALL be declared with the standard's `technical_resource` on the source dataset it feeds, with a name, an instrument identifier and, in the extension, the site it belongs to. The same instrument MAY be declared on several source datasets when it produces several streams, and SHALL then carry the same identifier and site on each. A persistent identifier of the instrument MAY be given with the standard's `technical_resource_id`. An instrument is a physical device or a data-entry system; a change of its software version SHALL NOT require a new declaration.
 
-#### Scenario: Instrument source data
-- **WHEN** a root dataset is marked site-scoped and has only distributions to site storage
+#### Scenario: Two scanners at one site
+- **WHEN** a source dataset declares two instruments of the same site with different identifiers
+- **THEN** validation succeeds and both are reported as instruments of that dataset
+
+#### Scenario: Instrument without a site
+- **WHEN** a declared instrument names no site
+- **THEN** validation fails and names the instrument
+
+#### Scenario: One instrument, two streams
+- **WHEN** the source datasets `dicoms` and `mri_raw` both declare instrument `PrismaFit16001` at site `a`
 - **THEN** validation succeeds
 
-#### Scenario: Site-scoped dataset with an external distribution
-- **WHEN** a site-scoped dataset declares a distribution bound to `release`
+#### Scenario: Same instrument declared twice in one stream
+- **WHEN** one source dataset declares the same instrument identifier twice
+- **THEN** validation fails and names the identifier
+
+#### Scenario: Same instrument at two sites
+- **WHEN** two source datasets declare the same instrument identifier with different sites
+- **THEN** validation fails and names the identifier
+
+### Requirement: Instrument source datasets
+A dataset that declares instruments SHALL be a root dataset representing one data stream, that is, one kind of collected data handled by the same indexing heuristic and converted by the same tool. Its name in the ma-DMP is the stream type. It SHALL be realised as one instance per declared instrument, each instance named `<site identifier>_<instrument identifier>` within its stream. Such a dataset SHALL NOT have a distribution to the hub or to any `release`-stage host. A dataset derived from it has every instance as a source.
+
+#### Scenario: Instances from the plan
+- **WHEN** a source dataset `dicoms` declares instrument `PrismaFit16001` at site `a` and instrument `Skyra45012` at site `b`
+- **THEN** tooling reports two instances of the stream `dicoms`, `a_PrismaFit16001` and `b_Skyra45012`, both sources of the datasets derived from `dicoms`
+
+#### Scenario: Streams kept apart
+- **WHEN** `dicoms` and `mri_raw` both declare instrument `PrismaFit16001` at site `a`
+- **THEN** tooling reports two distinct instances, one in each stream, with separate repositories
+
+#### Scenario: Instrument source dataset with an external distribution
+- **WHEN** a dataset that declares instruments also declares a distribution bound to `release`
 - **THEN** validation fails and names the dataset and the distribution
+
+#### Scenario: Instrument replaced during the study
+- **WHEN** a revised ma-DMP adds a third instrument to `dicoms`
+- **THEN** validation succeeds, a third instance is reported, and the existing instances are unchanged
 
 ### Requirement: Site-dependent hosts
 The extension SHALL allow a distribution's host to be declared as site-dependent, in which case the ma-DMP gives only a host name and each site's configuration supplies the actual storage.

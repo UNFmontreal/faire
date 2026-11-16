@@ -29,33 +29,33 @@ A site SHALL be defined by a site identifier, its runners, its storage and its s
 Each site's non-secret configuration SHALL be version-controlled in the study superdataset and readable by all sites. It SHALL give the site identifier, the mapping from host names used in the ma-DMP to that site's storage, and how jobs are routed to that site's runners. Secrets SHALL be held by each site's platform and never stored in the configuration.
 
 #### Scenario: Adding a site
-- **WHEN** a site configuration is added to the study superdataset
-- **THEN** the site can be bootstrapped with no change to the ma-DMP
+- **WHEN** a site configuration is added to the study superdataset and the ma-DMP declares that site's instruments
+- **THEN** the site can be bootstrapped
 
 #### Scenario: Host not mapped
 - **WHEN** the ma-DMP names a site-dependent host that the site's configuration does not map
 - **THEN** bootstrap for that site fails and names the host
 
 ### Requirement: Joining a study from the hub
-A site SHALL be able to join an existing study by installing the study superdataset from the hub. Joining SHALL create the site's local repositories for the federated datasets, the site's own instances of site-scoped datasets, and the site's storage remotes.
+A site SHALL be able to join an existing study by installing the study superdataset from the hub. Joining SHALL create the site's local repositories for the federated datasets, the instances of instrument source datasets for the site's own instruments, and the site's storage remotes.
 
 #### Scenario: Second site joins
 - **WHEN** site B joins a study already populated by site A
-- **THEN** site B has the federated datasets with site A's accepted history, its own empty instance of each site-scoped dataset, and no access to site A's instances' content
+- **THEN** site B has the federated datasets with site A's accepted history, an empty instance for each of its own declared instruments, and no access to the content of site A's instances
 
 ### Requirement: What is federated
-A dataset SHALL be federated only if it has a two-way distribution to the hub. Site-scoped datasets SHALL NOT be federated. Files excluded by the hub distribution's filters, including files marked sensitive, SHALL never be transferred to the hub or to another site.
+A dataset SHALL be federated only if it has a two-way distribution to the hub. Instrument source datasets SHALL NOT be federated. Files excluded by the hub distribution's filters, including files marked sensitive, SHALL never be transferred to the hub or to another site.
 
 #### Scenario: Source data stays local
 - **WHEN** a site synchronises with the hub
-- **THEN** no content of its site-scoped source datasets is transferred
+- **THEN** no content of its instrument source datasets is transferred
 
 #### Scenario: Sensitive file in a federated dataset
 - **WHEN** a federated dataset contains a file marked sensitive
 - **THEN** other sites receive the file's entry in the history and cannot retrieve its content
 
 ### Requirement: References to other sites' source datasets
-Every site SHALL know, for each site-scoped dataset instance of another site, its repository location and the revision referenced by derived datasets, without being able to retrieve its content. When the hub orchestrates the study, the repositories of site-scoped datasets MAY be visible to all sites on the hub, their content remaining on the owning site's storage.
+Every site SHALL know, for each instrument source dataset instance of another site, its repository location and the revision referenced by derived datasets, without being able to retrieve its content. When the hub orchestrates the study, the repositories of instrument source datasets MAY be visible to all sites on the hub, their content remaining on the owning site's storage.
 
 #### Scenario: Reference without access
 - **WHEN** site B inspects a federated dataset derived from site A's source data

@@ -8,9 +8,9 @@
 ## 2. ma-DMP profile
 
 - [ ] 2.1 Vendor the RDA DMP Common Standard v1.3 JSON schema and confirm from it that `dataset.related_identifier` exists and that additional properties are allowed on dmp, dataset, distribution and host; record the findings in the schema directory's README
-- [ ] 2.2 Write the profile JSON schema for the extension (template declaration, source roles, site-scoped flag, sample entities, distribution stage, filters, two-way flag, site-dependent hosts, host transfer parameters, hub and coordinator, release records) and verify a hand-written single-site example and a federated example validate against both the base and the profile schema
+- [ ] 2.2 Write the profile JSON schema for the extension (template declaration, source roles, instruments on `technical_resource` with identifier and site, sample entities, distribution stage, filters, two-way flag, site-dependent hosts, host transfer parameters, hub and coordinator, release records) and verify a hand-written single-site example and a federated example validate against both the base and the profile schema
 - [ ] 2.3 Implement loading a ma-DMP into a typed model and verify round-tripping both examples leaves them unchanged
-- [ ] 2.4 Implement the non-schema checks (license with resolvable identifier on every dataset, archival distributions only to long-term hosts, unique identifiers, pinned template, resolvable `IsDerivedFrom`, acyclic graph, at least one triggering source, parsable filters, no inline secrets, site-scoped datasets without hub or release distributions, two-way only to the hub, hub requires coordinator) and verify one failing fixture per check
+- [ ] 2.4 Implement the non-schema checks (instruments with identifier and site, consistent across streams and unique within one, no hub or release distribution on instrument source datasets, license with resolvable identifier on every dataset, archival distributions only to long-term hosts, unique identifiers, pinned template, resolvable `IsDerivedFrom`, acyclic graph, at least one triggering source, parsable filters, no inline secrets, two-way only to the hub, hub requires coordinator) and verify one failing fixture per check
 - [ ] 2.5 Implement the `validate` command reporting all violations with document locations and exit status, and verify against the valid fixtures and a fixture with three violations
 - [ ] 2.6 Add a test that stripping the extension property from the examples leaves valid base-standard documents
 
@@ -23,7 +23,7 @@
 
 ## 4. Bootstrap and reconcile (local)
 
-- [ ] 4.1 Implement computing the creation plan from a ma-DMP and a site in provenance order, including per-site instances of site-scoped datasets, and verify the order and instance names on a fixture
+- [ ] 4.1 Implement computing the creation plan from a ma-DMP and a site in provenance order, including one instance per declared instrument named `<site>_<instrument>`, and verify the order, instance names and `sourcedata/<stream type>/<site>_<instrument>` paths on a fixture with one instrument feeding two streams
 - [ ] 4.2 Implement dataset creation from its template with the recorded ma-DMP entry and `dev`, `pilot` and `main` branches, and verify the record matches and a template fetch failure leaves no partial dataset
 - [ ] 4.3 Implement installing triggering and resource sources under `sourcedata/` and verify one-source, two-source, resource and root fixtures
 - [ ] 4.4 Implement study superdataset creation with the ma-DMP and site configuration tracked and all datasets registered, and verify a fresh clone installs every dataset
@@ -33,6 +33,7 @@
 - [ ] 4.8 Implement detection and reporting of non-additive differences and unplanned datasets with a non-zero exit, and verify with changed-sources and removed-dataset fixtures
 - [ ] 4.9 Add ma-DMP validation as a required check on study superdataset pull requests and verify an invalid edit cannot be merged
 - [ ] 4.10 Write the license (with SPDX identifier) and a generated entry-point README into each created dataset and verify both are present in a clone taken without the study superdataset
+- [ ] 4.11 Implement additive handling of a new instrument (new instance, pull request registering it in derived datasets) and verify existing instances are untouched
 
 ## 5. Platform orchestration
 
@@ -65,6 +66,8 @@
 - [ ] 7.7 Verify repeatability: the same directory indexed twice makes no commit, and an interrupted run completes without duplication
 - [ ] 7.8 Implement credential handling from the environment for off-platform use and verify a missing platform credential fails before any change
 - [ ] 7.9 Wire the indexing push to the downstream trigger with the sample entities and verify a derived dataset opens a pull request for the indexed sample
+- [ ] 7.10 Implement routing by instrument identifier and per-sample recording of the software version, and verify the two-instruments, software-update and other-site scenarios
+- [ ] 7.11 Implement handling of undeclared instruments (instance creation, warning, pull request on derived datasets, no downstream trigger until merged, triggering of waiting samples and ma-DMP pull request on merge) and verify the three specified scenarios with the fake platform
 
 ## 8. Dataset lifecycle
 
@@ -93,7 +96,7 @@
 
 ## 10. Federation
 
-- [ ] 10.1 Implement joining a study from the hub (install, create local repositories, instantiate site-scoped datasets, create site remotes) and verify a second site gets the first site's accepted history and no access to its source content
+- [ ] 10.1 Implement joining a study from the hub (install, create local repositories, create instances for the site's own instruments, create site remotes) and verify a second site gets the first site's accepted history and no access to its source content
 - [ ] 10.2 Implement `sync` for `dev`, `main` and `pilot` in provenance order with the hub as a sibling, and verify two sites converge through a bare-repository hub and an unchanged state makes no commit
 - [ ] 10.3 Implement conflict resolution (union merges from the template, ancestry-based source pointer resolution, abort and report otherwise) and verify the three specified conflict scenarios
 - [ ] 10.4 Verify received samples land on `dev` without a pull request and start no run at the receiving site

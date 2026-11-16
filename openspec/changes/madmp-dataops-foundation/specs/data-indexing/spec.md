@@ -5,18 +5,48 @@ Provides a generic indexer that brings newly received instrument data into a sit
 ## ADDED Requirements
 
 ### Requirement: Index command
-The tool SHALL provide a command that, given a directory of received files and a site-scoped source dataset, works in a fresh clone of that site's instance of the dataset, records the files as a new sample, transfers their content to the dataset's `collection`-stage storage, and pushes the resulting history to the dataset's repository.
+The tool SHALL provide a command that, given a directory of received files and the stream they belong to, that is, an instrument source dataset of the study, works in a fresh clone of the instance for the instrument that produced the files, records the files as a new sample, transfers their content to the instance's `collection`-stage storage, and pushes the resulting history to the instance's repository.
 
 #### Scenario: New sample indexed
 - **WHEN** the command is run on a directory holding one new sample
-- **THEN** the site's source dataset repository has a new commit recording the sample's files, and their content is retrievable from the dataset's `collection` storage by a fresh clone
+- **THEN** the repository of the producing instrument's instance has a new commit recording the sample's files, and their content is retrievable from that instance's `collection` storage by a fresh clone
 
-#### Scenario: Not a source dataset of this site
-- **WHEN** the command is pointed at a dataset that is not a site-scoped source dataset instance of the current site
+#### Scenario: Not an instrument source dataset
+- **WHEN** the command is pointed at a dataset that declares no instrument
 - **THEN** it fails before changing anything
 
+### Requirement: Routing by instrument
+The heuristic SHALL determine, from the incoming files, the identifier of the instrument that produced them. The indexer SHALL record the sample in the instance named `<site identifier>_<instrument identifier>` of the given stream for the current site. The instrument's software version, when the heuristic reports it, SHALL be recorded with the sample and SHALL NOT affect which instance is used.
+
+#### Scenario: Two instruments at a site
+- **WHEN** site `a` has instances for `PrismaFit16001` and `PrismaFit16002` and the incoming files come from `PrismaFit16002`
+- **THEN** the sample is recorded in `a_PrismaFit16002` only
+
+#### Scenario: Software update
+- **WHEN** files arrive from a declared instrument whose software version differs from earlier samples
+- **THEN** the sample is recorded in the same instance and its record carries the new software version
+
+#### Scenario: Instrument of another site
+- **WHEN** the incoming files come from an instrument the ma-DMP declares at a different site
+- **THEN** nothing is recorded and the command fails naming the instrument and its declared site
+
+### Requirement: Instruments not yet declared
+When the incoming files come from an instrument the ma-DMP does not declare for the stream, the indexer SHALL create a new instance for it at the current site, with the same template and storage remotes as the other instances of that stream, and SHALL index pilot and production samples into it. Pushing the new instance SHALL open, on each dataset derived from that stream, a pull request registering the instance under `sourcedata/`. Samples indexed into the new instance SHALL NOT trigger any derived dataset until that pull request is merged; on merge, the samples indexed meanwhile SHALL be triggered. Merging SHALL also result in a pull request on the study superdataset that adds the instrument to the ma-DMP. Until the instrument is declared, the indexer SHALL warn at each run that it is undeclared.
+
+#### Scenario: First sample from a new scanner
+- **WHEN** a sample arrives at site `a` from the instrument `PrismaFit16002`, undeclared for the stream `dicoms`
+- **THEN** the instance `a_PrismaFit16002` is created and holds the sample, the derived dataset has a pull request registering `sourcedata/dicoms/a_PrismaFit16002`, and the command's output warns that the instrument is not in the ma-DMP
+
+#### Scenario: Samples wait for the registration
+- **WHEN** two production samples are indexed into the new instance before its registration pull request is merged
+- **THEN** the derived dataset has no pull request for either sample
+
+#### Scenario: Registration merged
+- **WHEN** the pull request registering the new instance is merged in the derived dataset
+- **THEN** the derived dataset is triggered for the samples already indexed, and the study superdataset has a pull request adding the instrument, with its site, to the ma-DMP
+
 ### Requirement: Heuristic-driven behaviour
-Indexing SHALL be driven by a heuristic, written in Python and provided by the source dataset's template, that receives the incoming files and decides: the sample's entity values, whether the sample is pilot, which files to keep, which files to mark sensitive, where each file is placed, whether the sample is stored in its own subdataset and under what name, and how a new subdataset is set up. Each decision SHALL be optional for a heuristic, with a documented default.
+Indexing SHALL be driven by a heuristic, written in Python and provided by the source dataset's template, that receives the incoming files and decides: the instrument that produced the files, the sample's entity values, whether the sample is pilot, which files to keep, which files to mark sensitive, where each file is placed, whether the sample is stored in its own subdataset and under what name, and how a new subdataset is set up. Each decision other than the instrument and the entity values SHALL be optional for a heuristic, with a documented default.
 
 #### Scenario: Entities from file metadata
 - **WHEN** the heuristic derives `subject=01, session=003` from the incoming files' metadata
@@ -38,7 +68,7 @@ The heuristic used SHALL be the one contained in the source dataset at the revis
 - **THEN** the sample's entities, its pilot status and the revision of the heuristic that produced the layout are identifiable
 
 ### Requirement: Samples stored directly or in their own subdataset
-When the heuristic asks for it, the sample SHALL be stored in a new subdataset of the source dataset, created by the indexer with the name the heuristic gives, with its own repository on the platform and its own storage remotes carrying the same rules as the parent's about which files each storage accepts. Otherwise the sample SHALL be stored directly in the source dataset.
+When the heuristic asks for it, the sample SHALL be stored in a new subdataset of the instrument's instance, created by the indexer with the name the heuristic gives, with its own repository on the platform and its own storage remotes carrying the same rules as the parent's about which files each storage accepts. Otherwise the sample SHALL be stored directly in the instance.
 
 #### Scenario: Sample with many files
 - **WHEN** the heuristic asks for a per-sample subdataset named from the sample's entities

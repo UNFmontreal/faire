@@ -19,7 +19,7 @@ The lifecycle of a sample in a dataset SHALL consist of the stages `collection` 
 - **THEN** the tool reports that sample's stage in that dataset as `review`
 
 ### Requirement: Sample entry into source datasets
-A sample SHALL enter a site-scoped source dataset by being indexed, as specified by the data-indexing capability, which records it directly on `dev`, or on `pilot` for a pilot sample, without a pull request. A sample contributed to a root dataset by any other means SHALL arrive as a feature branch carrying the sample's entities and be proposed by pull request. In both cases the sample's content SHALL be reachable from storage the site's runners can read. Review of collected data takes place in the first derived dataset.
+A sample SHALL enter an instrument source dataset by being indexed into the instance of the instrument that produced it, as specified by the data-indexing capability, which records it directly on `dev`, or on `pilot` for a pilot sample, without a pull request. A sample contributed to a root dataset by any other means SHALL arrive as a feature branch carrying the sample's entities and be proposed by pull request. In both cases the sample's content SHALL be reachable from storage the site's runners can read. Review of collected data takes place in the first derived dataset.
 
 #### Scenario: Indexed sample
 - **WHEN** a production sample is indexed into a site's source dataset
@@ -150,7 +150,7 @@ Before tagging, a release SHALL verify that every component a dataset references
 - **THEN** no dataset is tagged and the report names the dataset and the container
 
 #### Scenario: Restricted source data
-- **WHEN** a released dataset derives from a site-scoped source dataset declared access-restricted
+- **WHEN** a released dataset derives from an instrument source dataset declared access-restricted
 - **THEN** the release proceeds and the report lists that source as restricted, with its location and revision
 
 ### Requirement: License report at release

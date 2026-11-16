@@ -100,7 +100,7 @@ Marked in the extension per source. Both are `sourcedata/` subdatasets; only tri
 A long-lived `pilot` branch per dataset, never merged into `dev`. Ingestion marks pilot samples; the pull request target follows the mark. The template's protocol tool (forbids for MRI in the proof of concept) derives the expectations from pilot data and commits them; on production pull requests the same tool runs as a non-blocking check. Blocking checks and advisory checks are distinguished in the template.
 
 ### D18. Sites and site configuration
-A site is an identifier plus runners, storage and secrets. Site files live in the study superdataset (`sites/<site>` as a working layout) and map site-dependent host names to concrete remotes and runner tags. Every command takes the site from its environment. Site-scoped datasets are instantiated as `<dataset>_<site>`. The same model covers the hub-orchestrated deployment, where only job routing and storage differ per site.
+A site is an identifier plus runners, storage and secrets. Site files live in the study superdataset (`sites/<site>` as a working layout) and map site-dependent host names to concrete remotes and runner tags. Every command takes the site from its environment. Source data is organised per instrument, not per site (D28). The same model covers the hub-orchestrated deployment, where only job routing and storage differ per site.
 
 ### D19. Federation as a two-way distribution with a sync command
 `sync` walks federated datasets in provenance order and, per branch (`dev`, `main`, `pilot`): merges from the hub, resolves, pushes to the hub. Union merges come from the template's `.gitattributes`. Subdataset pointer conflicts are resolved by ancestry, never by date: the descendant wins, and for diverged pointers the already-synchronised source head is used. Anything else aborts that dataset's sync without pushing. git-annex location tracking travels with the `git-annex` branch, so sites learn where content is even when the hub is git-only. Received samples are not reprocessed because downstream triggers fire on pull request merges, not on sync merges.
@@ -119,7 +119,7 @@ Templates route every file that may hold identifiable content to the annex throu
 `pilot` history is synchronised, but pilot content is excluded from the hub and all external remotes, since pilots may be acquired under separate ethics. Implemented by tagging pilot keys at ingestion and in pilot runs, and adding that tag to the exclusion of every non-site remote.
 
 ### D24. Archival is a release to long-term hosts
-Archival reuses the release machinery (first-use remote creation, per-site delivery, coordinator completion) for distributions bound to `archival`, whose hosts must be declared long-term in the ma-DMP. The only extra step is making subdataset references resolvable without the platform (D13).
+Archival reuses the release machinery (first-use remote creation, per-site delivery, coordinator completion) for distributions bound to `archival`, whose hosts must be declared long-term in the ma-DMP: the standard's `host.certified_with` (CoreTrustSeal, ISO 16363 and others) counts, and an extension flag covers long-term hosts without certification. The only extra step is making subdataset references resolvable without the platform (D13).
 
 ### D25. The ma-DMP is edited by pull request
 The study superdataset runs `faire validate` on pull requests touching the ma-DMP. In a federated study the hub's study superdataset is authoritative; sites install it and receive revisions by sync. In the hub-orchestrated deployment sites deploy only ingestion services and runners.
@@ -137,7 +137,7 @@ Mapping of the paper's requirements to this change:
 | A.2 | ma-DMP, rule file and `faire run` are executable specifications |
 | M.1, M.2 | One dataset per ma-DMP dataset, linked as subdatasets |
 | M.3 | License declared per dataset; compatibility is reported at release for human review, not checked automatically |
-| M.4 | Partial by choice: source data is a separate, site-scoped module, but sensitive files inside a standardized dataset are separated by file-level filters and a sensitive-only remote, not by a separate module |
+| M.4 | Partial by choice: source data is in separate per-instrument modules that stay at their site, but sensitive files inside a standardized dataset are separated by file-level filters and a sensitive-only remote, not by a separate module |
 | P.1 to P.3 | Registered, digest-pinned containers; host specifics confined to site configuration |
 | E.1 | `faire run` works in a throwaway clone on a runner |
 | D.1 | Release check on every referenced component: in the release, declared restricted, or externally managed and answering at its pinned revision |
@@ -149,6 +149,13 @@ Containers are not copied at release: collections such as ReproNim containers, o
 ### D27. Generic indexer with a Python heuristic
 `faire index <dir>` clones the site's source dataset, imports the heuristic module from that clone, and applies its optional functions (entities, pilot, keep, sensitive, placement, subdataset name, subdataset setup). The setup callback receives the freshly created subdataset and runs before any file is added, typically to write `.gitattributes`; its result is saved as its own commit. Without it the parent's `.gitattributes` is copied. It then saves with DataLad, optionally through an archive mechanism so that thousands of small files become a few annexed archives while paths stay addressable, sets annex metadata for sensitive and pilot content before any copy, pushes content, then the subdataset, then the parent. Per-sample subdatasets are created with the same remote setup code as bootstrap, which is the main reuse argument. Indexed samples go straight to `dev` or `pilot` of the source dataset, as in the proof of concept where review happens on the standardized dataset; the push event carries the sample entities to the downstream trigger. The heuristic interface is expected to grow with new modalities, so every function is optional with a default.
 *Alternatives:* leaving ingestion entirely to external tools (duplicates git, storage and platform handling in each); a declarative mapping file instead of Python (too weak for metadata extraction from instrument formats).
+
+### D28. Instruments anchored on `technical_resource`
+The standard's `dataset.technical_resource` ("equipment needed/used to create or process the data") holds each instrument: `name`, optional `technical_resource_id` for a persistent instrument identifier, and in the `faire` extension the instrument identifier and its site. The standard has no instrument type, model or site, hence the extension. All instruments of all sites are listed in the ma-DMP, since sites are fixed early in a study while instruments may be replaced.
+A source dataset declaring instruments is one stream type (`dicoms`, `mri_raw`, `physio`, `eeg`): the data that one heuristic indexes and one tool converts (heudiconv, spec2nii, phys2bids and so on). One instrument may feed several streams. Each stream is realised as one repository per instrument, `<site>_<instrument>`, installed in derived datasets at `sourcedata/<stream type>/<site>_<instrument>` with only the last level a subdataset (which may itself hold per-sample subdatasets). A replaced scanner therefore gets its own dataset and history. Identity is the physical device; software versions are per-sample metadata written by the heuristic.
+An undeclared instrument does not block indexing: the indexer creates the instance and opens a pull request on the derived (standardized) dataset to register it. Until that is merged the instance is not a source of anything, so its samples, pilot or production, trigger nothing; on merge they are triggered and a ma-DMP pull request is opened. This replaces the earlier per-site source dataset concept; sites remain only as storage mapping, runners and secrets.
+Listing the containers a derived dataset uses as technical resources, written back by the tool, is a natural follow-up and is not part of this change.
+*Alternatives:* concrete devices in site configuration with only a role in the ma-DMP (keeps the ma-DMP stable but hides the instruments from the plan); refusing undeclared instruments outright (cleaner but cumbersome when a scanner is swapped).
 
 ## Risks / Trade-offs
 
@@ -163,6 +170,7 @@ Containers are not copied at release: collections such as ReproNim containers, o
 - [Sensitive file names and history still reach other sites even though content does not] → accepted; templates must keep sensitive information out of file names and tracked text files.
 - [The heuristic is arbitrary Python executed with storage and platform credentials] → it is only loaded from the source dataset's own versioned content, changes to it go through pull requests, and dry-run mode shows its decisions.
 - [Indexed data enters `dev` of the source dataset without review] → accepted; source data is site-local and review takes place on the first derived dataset.
+- [A wrong instrument identifier from the heuristic silently creates a spurious instance] → an undeclared instrument always produces a visible pull request and a warning, and its samples trigger nothing until that pull request is reviewed and merged.
 - [STAMPED conformance is by design, not measured] → D26 records the mapping; running the STAMPED checklist against the example project is a documentation task.
 - [Externally managed containers may disappear after a release] → their persistence is their owners' responsibility; the release check only proves they were retrievable at release time and the report records location and revision.
 

@@ -41,11 +41,15 @@ The containers a template declares SHALL be registered in the created dataset as
 - **THEN** listing the containers of the created dataset shows that container at the pinned version
 
 ### Requirement: Source datasets installed as subdatasets
-For each `IsDerivedFrom` link, the source dataset SHALL be registered as a subdataset of the derived dataset under `sourcedata/`, at a path named after the source dataset.
+For each `IsDerivedFrom` link, the source dataset SHALL be registered as a subdataset of the derived dataset under `sourcedata/`, at a path named after the source dataset. For an instrument source dataset, each instance SHALL be registered at `sourcedata/<stream type>/<site identifier>_<instrument identifier>`, where the stream type is the source dataset's name and only the last level is a subdataset.
 
 #### Scenario: Derivative with two sources
 - **WHEN** a dataset declares two source datasets
 - **THEN** the created dataset has two subdatasets under `sourcedata/`, one per source
+
+#### Scenario: Instrument source dataset
+- **WHEN** a dataset is derived from the instrument source dataset `dicoms` with instances `a_PrismaFit16001` and `b_Skyra45012`
+- **THEN** the created dataset has the subdatasets `sourcedata/dicoms/a_PrismaFit16001` and `sourcedata/dicoms/b_Skyra45012`, and `sourcedata/dicoms` itself is a plain directory
 
 #### Scenario: Root dataset
 - **WHEN** a dataset declares no source dataset
@@ -56,11 +60,15 @@ For each `IsDerivedFrom` link, the source dataset SHALL be registered as a subda
 - **THEN** that source is also registered under `sourcedata/` at a pinned revision
 
 ### Requirement: Bootstrap for a site
-Bootstrap SHALL run on behalf of one site, using that site's configuration from the study superdataset to resolve site-dependent hosts. It SHALL create that site's instance of each site-scoped dataset, named with the site identifier, and register each instance as a source of the datasets derived from it.
+Bootstrap SHALL run on behalf of one site, using that site's configuration from the study superdataset to resolve site-dependent hosts. It SHALL create the instances of instrument source datasets for the instruments of that site, and SHALL register the instances of every site's instruments as sources of the datasets derived from them, by reference for those of other sites.
 
-#### Scenario: Site-scoped source
-- **WHEN** bootstrap runs for site `a` on a plan with a site-scoped root dataset `instrument`
-- **THEN** an instance of `instrument` for site `a` exists and is registered under `sourcedata/` of the datasets derived from `instrument`
+#### Scenario: Site's own instrument
+- **WHEN** bootstrap runs for site `a` on a plan where `dicoms` declares instrument `PrismaFit16001` at site `a`
+- **THEN** the instance `a_PrismaFit16001` exists with site `a`'s storage remotes and is registered under `sourcedata/dicoms/` of the datasets derived from `dicoms`
+
+#### Scenario: Another site's instrument
+- **WHEN** bootstrap runs for site `a` on a plan where `dicoms` also declares instrument `Skyra45012` at site `b`
+- **THEN** site `a` creates no repository or storage for `b_Skyra45012` and derived datasets reference it under `sourcedata/dicoms/`
 
 #### Scenario: Unmapped host
 - **WHEN** the site configuration does not map a site-dependent host used by the plan
@@ -125,11 +133,15 @@ Running bootstrap again on an unchanged ma-DMP SHALL make no change. A dry-run m
 - **THEN** the planned creation of that dataset is reported and nothing is created
 
 ### Requirement: Additive evolution
-When a revised ma-DMP adds datasets or distributions, bootstrap SHALL create the new datasets, link them to their sources, register them in the study superdataset and configure the new distributions, without altering existing datasets' content.
+When a revised ma-DMP adds datasets, distributions or instruments, bootstrap SHALL create the new datasets and instrument instances, link them to their sources, register them in the study superdataset and configure the new distributions, without altering existing datasets' content. Registering a new instrument instance under `sourcedata/` of an existing derived dataset SHALL be proposed by pull request on that dataset and counts as an additive change.
 
 #### Scenario: New derivative added
 - **WHEN** a dataset derived from an existing dataset is added to the ma-DMP and bootstrap is run
 - **THEN** only the new dataset is created and registered, and existing datasets gain no commit other than platform configuration for triggering the new one
+
+#### Scenario: New instrument added
+- **WHEN** an instrument is added to an existing instrument source dataset in the ma-DMP and bootstrap is run
+- **THEN** the new instance is created, and each dataset derived from that source dataset has a pull request registering it under `sourcedata/`
 
 #### Scenario: New distribution added
 - **WHEN** a distribution is added to an existing dataset and bootstrap is run
