@@ -33,16 +33,20 @@ Each dataset SHALL declare, in the extension, the git template it is created fro
 - **WHEN** a dataset's template declaration gives a repository location without a pinned version
 - **THEN** validation fails and names the dataset
 
-### Requirement: License on every dataset
-Each dataset SHALL declare a license by a resolvable identifier.
+### Requirement: License on the distributions of every dataset
+Each dataset SHALL have at least one distribution carrying a license, using the standard's `license` with a resolvable license reference, and every distribution bound to `release` or `archival` SHALL carry one. The license of a dataset is that of its release distribution when it has one, otherwise that of its first licensed distribution.
 
 #### Scenario: Missing license
-- **WHEN** a dataset declares no license
+- **WHEN** no distribution of a dataset declares a license
 - **THEN** validation fails and names the dataset
 
+#### Scenario: Unlicensed release distribution
+- **WHEN** a distribution bound to `release` declares no license
+- **THEN** validation fails and names the dataset and the distribution
+
 #### Scenario: Unresolvable license
-- **WHEN** a dataset's license is given as free text with no resolvable identifier
-- **THEN** validation fails and names the dataset
+- **WHEN** a distribution's license reference is free text rather than a resolvable identifier
+- **THEN** validation fails and names the dataset and the distribution
 
 ### Requirement: Provenance links between datasets
 A dataset derived from other datasets of the project SHALL declare each source with the standard's `related_identifier` using the relation type `IsDerivedFrom` and the source dataset's identifier. The set of all such links in a ma-DMP SHALL form a directed acyclic graph. A dataset with no such link is a root dataset holding collected data.
@@ -89,10 +93,10 @@ A distribution bound to `archival` SHALL target a host that the ma-DMP declares 
 - **THEN** validation fails and names the distribution and the host
 
 ### Requirement: File filters of a distribution
-A distribution MAY declare, in the extension, include and exclude filters that select files by path pattern and by file metadata. A distribution without filters SHALL cover all files of the dataset.
+A distribution MAY declare, in the extension, one filter written as a git-annex matching expression (terms `include=<glob>`, `exclude=<glob>`, `metadata=<field>=<glob>`, `anything`, `nothing`, combined with `and`, `or`, `not` and parentheses). A distribution without a filter SHALL cover all files of the dataset.
 
 #### Scenario: Exclusion by metadata
-- **WHEN** a distribution declares an exclude filter on files whose metadata marks them as sensitive
+- **WHEN** a distribution declares the filter `not metadata=distribution-restrictions=sensitive`
 - **THEN** validation succeeds and the filter is reported as part of that distribution
 
 #### Scenario: Malformed filter

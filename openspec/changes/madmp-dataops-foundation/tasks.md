@@ -1,18 +1,18 @@
 ## 1. Project setup
 
-- [ ] 1.1 Create the Python package skeleton (pyproject, source package, test directory, command-line entry point) and verify the command prints its help and an empty test run passes
-- [ ] 1.2 Add dependencies (DataLad, datalad-container, copier, a JSON Schema validator, a GitLab API client) and verify a clean environment installs and imports them
+- [x] 1.1 Create the Python package skeleton (pyproject, source package, test directory, command-line entry point) and verify the command prints its help and an empty test run passes
+- [x] 1.2 Add dependencies (DataLad, datalad-container, copier, a JSON Schema validator, a GitLab API client) and verify a clean environment installs and imports them
 - [ ] 1.3 Add CI for the tool itself (lint and tests) and verify it passes on the skeleton
-- [ ] 1.4 Fill `openspec/config.yaml` context with the stack and conventions chosen here and verify `openspec validate` still passes
+- [x] 1.4 Fill `openspec/config.yaml` context with the stack and conventions chosen here and verify `openspec validate` still passes
 
 ## 2. ma-DMP profile
 
-- [ ] 2.1 Vendor the RDA DMP Common Standard v1.3 JSON schema and confirm from it that `dataset.related_identifier` exists and that additional properties are allowed on dmp, dataset, distribution and host; record the findings in the schema directory's README
-- [ ] 2.2 Write the profile JSON schema for the extension (template declaration, source roles, instruments on `technical_resource` with identifier and site, sample entities, distribution stage, filters, two-way flag, site-dependent hosts, host transfer parameters, hub and coordinator, release records) and verify a hand-written single-site example and a federated example validate against both the base and the profile schema
-- [ ] 2.3 Implement loading a ma-DMP into a typed model and verify round-tripping both examples leaves them unchanged
-- [ ] 2.4 Implement the non-schema checks (instruments with identifier and site, consistent across streams and unique within one, no hub or release distribution on instrument source datasets, license with resolvable identifier on every dataset, archival distributions only to long-term hosts, unique identifiers, pinned template, resolvable `IsDerivedFrom`, acyclic graph, at least one triggering source, parsable filters, no inline secrets, two-way only to the hub, hub requires coordinator) and verify one failing fixture per check
-- [ ] 2.5 Implement the `validate` command reporting all violations with document locations and exit status, and verify against the valid fixtures and a fixture with three violations
-- [ ] 2.6 Add a test that stripping the extension property from the examples leaves valid base-standard documents
+- [x] 2.1 Vendor the RDA DMP Common Standard v1.3 JSON schema and confirm from it that `dataset.related_identifier` exists and that additional properties are allowed on dmp, dataset, distribution and host; record the findings in the schema directory's README
+- [x] 2.2 Write the profile JSON schema for the extension (template declaration, source roles, instruments on `technical_resource` with identifier and site, sample entities, distribution stage, filters, two-way flag, site-dependent hosts, host transfer parameters, hub and coordinator, release records) and verify a hand-written single-site example and a federated example validate against both the base and the profile schema
+- [x] 2.3 Implement loading a ma-DMP into a typed model and verify round-tripping both examples leaves them unchanged
+- [x] 2.4 Implement the non-schema checks (instruments with identifier and site, consistent across streams and unique within one, no hub or release distribution on instrument source datasets, license with resolvable reference on at least one distribution of every dataset and on every release or archival distribution, archival distributions only to long-term hosts, unique identifiers, pinned template, resolvable `IsDerivedFrom`, acyclic graph, at least one triggering source, filters that parse as git-annex matching expressions, no inline secrets, two-way only to the hub, hub requires coordinator) and verify one failing fixture per check
+- [x] 2.5 Implement the `validate` command reporting all violations with document locations and exit status, and verify against the valid fixtures and a fixture with three violations
+- [x] 2.6 Add a test that stripping the extension property from the examples leaves valid base-standard documents
 
 ## 3. Sites and reference templates
 

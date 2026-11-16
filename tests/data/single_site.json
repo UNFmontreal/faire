@@ -1,0 +1,261 @@
+{
+  "dmp": {
+    "title": "Example single-site study",
+    "created": "2026-01-10T09:00:00Z",
+    "modified": "2026-01-10T09:00:00Z",
+    "language": "eng",
+    "ethical_issues_exist": "yes",
+    "dmp_id": {
+      "identifier": "https://example.org/dmp/single",
+      "type": "url"
+    },
+    "contact": {
+      "name": "Data Steward",
+      "mbox": "steward@example.org",
+      "contact_id": {
+        "identifier": "0000-0000-0000-0000",
+        "type": "orcid"
+      }
+    },
+    "faire": {
+      "sample_entities": [
+        "subject",
+        "session"
+      ]
+    },
+    "dataset": [
+      {
+        "title": "Raw scanner data",
+        "dataset_id": {
+          "identifier": "dicoms",
+          "type": "other"
+        },
+        "personal_data": "yes",
+        "sensitive_data": "yes",
+        "technical_resource": [
+          {
+            "name": "Prisma Fit 16001",
+            "faire": {
+              "instrument_id": "PrismaFit16001",
+              "site": "a"
+            }
+          }
+        ],
+        "faire": {
+          "template": {
+            "repository": "gh:example/template-source",
+            "version": "v1.0.0"
+          }
+        },
+        "distribution": [
+          {
+            "title": "Site working storage",
+            "data_access": "closed",
+            "host": {
+              "title": "Site storage",
+              "faire": {
+                "site_dependent": true
+              }
+            },
+            "faire": {
+              "stage": "collection"
+            },
+            "license": [
+              {
+                "license_ref": "https://spdx.org/licenses/LicenseRef-Restricted",
+                "start_date": "2026-01-10"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Atlas",
+        "dataset_id": {
+          "identifier": "atlas",
+          "type": "other"
+        },
+        "personal_data": "no",
+        "sensitive_data": "no",
+        "faire": {
+          "template": {
+            "repository": "gh:example/template-resource",
+            "version": "v1.0.0"
+          }
+        },
+        "distribution": [
+          {
+            "title": "Resource storage",
+            "data_access": "open",
+            "host": {
+              "title": "Site storage",
+              "faire": {
+                "site_dependent": true
+              }
+            },
+            "faire": {
+              "stage": "accepted"
+            },
+            "license": [
+              {
+                "license_ref": "https://spdx.org/licenses/CC0-1.0",
+                "start_date": "2026-01-10"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Standardized data",
+        "dataset_id": {
+          "identifier": "standardized",
+          "type": "other"
+        },
+        "personal_data": "yes",
+        "sensitive_data": "no",
+        "related_identifier": [
+          {
+            "identifier": "dicoms",
+            "type": "other",
+            "relation_type": "IsDerivedFrom"
+          }
+        ],
+        "faire": {
+          "template": {
+            "repository": "gh:example/template-derived",
+            "version": "v1.2.0",
+            "parameters": {
+              "container": "converter"
+            }
+          }
+        },
+        "distribution": [
+          {
+            "title": "Review storage",
+            "data_access": "closed",
+            "host": {
+              "title": "Site storage",
+              "faire": {
+                "site_dependent": true
+              }
+            },
+            "faire": {
+              "stage": "review",
+              "filter": "not metadata=distribution-restrictions=sensitive"
+            },
+            "license": [
+              {
+                "license_ref": "https://spdx.org/licenses/CC-BY-4.0",
+                "start_date": "2026-01-10"
+              }
+            ]
+          },
+          {
+            "title": "Public release",
+            "data_access": "open",
+            "license": [
+              {
+                "license_ref": "https://spdx.org/licenses/CC-BY-4.0",
+                "start_date": "2026-06-01"
+              }
+            ],
+            "host": {
+              "title": "Zenodo",
+              "url": "https://zenodo.org",
+              "pid_system": [
+                "doi"
+              ],
+              "faire": {
+                "method": "zenodo",
+                "parameters": {
+                  "community": "example"
+                },
+                "secrets": {
+                  "token": "ZENODO_TOKEN"
+                }
+              }
+            },
+            "faire": {
+              "stage": "release",
+              "filter": "not metadata=distribution-restrictions=sensitive"
+            }
+          },
+          {
+            "title": "Long-term archive",
+            "data_access": "restricted",
+            "host": {
+              "title": "Institutional archive",
+              "url": "https://archive.example.org",
+              "certified_with": "coretrustseal",
+              "faire": {
+                "long_term": true
+              }
+            },
+            "faire": {
+              "stage": "archival"
+            },
+            "license": [
+              {
+                "license_ref": "https://spdx.org/licenses/CC-BY-4.0",
+                "start_date": "2026-01-10"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Analysis",
+        "dataset_id": {
+          "identifier": "analysis",
+          "type": "other"
+        },
+        "personal_data": "no",
+        "sensitive_data": "no",
+        "related_identifier": [
+          {
+            "identifier": "standardized",
+            "type": "other",
+            "relation_type": "IsDerivedFrom"
+          },
+          {
+            "identifier": "atlas",
+            "type": "other",
+            "relation_type": "IsDerivedFrom"
+          }
+        ],
+        "faire": {
+          "template": {
+            "repository": "gh:example/template-derived",
+            "version": "v2.0.0"
+          },
+          "sources": {
+            "atlas": {
+              "role": "resource"
+            }
+          }
+        },
+        "distribution": [
+          {
+            "title": "Resource storage",
+            "data_access": "open",
+            "host": {
+              "title": "Site storage",
+              "faire": {
+                "site_dependent": true
+              }
+            },
+            "faire": {
+              "stage": "accepted"
+            },
+            "license": [
+              {
+                "license_ref": "https://spdx.org/licenses/CC-BY-4.0",
+                "start_date": "2026-01-10"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

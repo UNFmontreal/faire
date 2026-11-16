@@ -1,5 +1,13 @@
 schema: spec-driven
 
+context: |
+  Tech stack: Python >=3.10 package `faire` (src/faire, tests/), click CLI, pyyaml, jsonschema, copier.
+  All git, git-annex and DataLad operations go through the DataLad Python API (datalad.api, ds.repo),
+  never subprocess. Platform access only through the platform adapter (python-gitlab for GitLab).
+  Dependencies stay minimal: search for a well-maintained package and ask before adding one.
+  Rules, checks and site configs are YAML. Tests: pytest; lint: ruff. The tool's own CI is GitHub Actions.
+  Domain-agnostic: neuroimaging is only an inspiration, not a requirement of the code.
+
 # Project context (optional)
 # This is shown to AI when creating artifacts.
 # Add your tech stack, conventions, style guides, domain knowledge, etc.
