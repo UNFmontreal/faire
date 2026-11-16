@@ -69,7 +69,7 @@ When the hub orchestrates the study, a site SHALL need to deploy only its ingest
 - **THEN** its samples are ingested, processed and delivered without any site-hosted DevOps platform
 
 ### Requirement: Synchronisation with the hub
-The tool SHALL provide a command that synchronises a site with the hub: for each federated dataset, in provenance order with sources first, it merges the hub's `dev`, `main` and `pilot` branches into the site's, then pushes the result to the hub. It SHALL be runnable on a schedule and after each merge.
+The `sync` command SHALL synchronise a site with the hub through the datasets' two-way distributions: for each federated dataset, in provenance order with sources first, it merges the hub's `dev`, `main` and `pilot` branches into the site's, then pushes the result to the hub. It SHALL be runnable on a schedule and after each merge.
 
 #### Scenario: Both sides changed
 - **WHEN** site A accepted sample `S1` and the hub already holds sample `S2` from site B

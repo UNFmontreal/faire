@@ -95,7 +95,7 @@
 
 ## 9. Data distribution
 
-- [ ] 9.1 Implement the `distribute` command for a dataset and stage with filter enforcement, and verify only that stage's distributions are fulfilled, a sensitive file is never transferred, and a fresh clone sees the remote's content
+- [ ] 9.1 Implement the `sync` command for a dataset and stage, covering one-way distributions with filter enforcement and delegating two-way distributions to the hub exchange, with an option to name distributions, and verify only that stage's distributions are fulfilled, a sensitive file is never transferred, and a fresh clone sees the remote's content
 - [ ] 9.2 Implement first-use creation of `release` and `archival` remotes with wanted rules and verify creation on the first release and reuse on the second
 - [ ] 9.3 Implement failure handling for missing secrets (named, no values printed, other distributions still attempted) and verify with a fixture
 - [ ] 9.4 Implement the release completeness check from git-annex location tracking and verify no identifier is obtained while a selected file is missing from the release remote

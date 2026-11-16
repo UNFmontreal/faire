@@ -173,8 +173,12 @@ faire test --list / --check <id>, faire trigger
 - **Actions-style renderer (later).** GitHub, Forgejo and Gitea share the Actions workflow syntax, so one further renderer would cover all three: a planning job outputs the list and a matrix job fans out over it. A matrix cannot order its entries, so ordered tasks of one branch run inside one job; GitHub caps a matrix at 256 entries; downstream triggering uses `faire trigger` through the API.
 - **Fallback.** One static job running `faire run --all` then `faire test`, for any platform. No parallelism, per-task logs or retries.
 - **Pull request listing.** Paths a rule declares for listing are written by `faire run` into a pull request comment it owns and updates, linking to the job artifact or to the file on the branch.
+- **Platform-native reporting (later).** The comment is the portable baseline; richer integration such as GitLab report artifacts or the Actions job summary can be added per renderer without changing the rule file.
 - **Secrets on sample branches.** GitLab exposes protected variables only on protected branches, so `init` protects the tool's branch name patterns.
 *Alternative:* one hand-written job per rule in each template. Rejected: duplication across templates and no fan-out per sample.
+
+### D31. One `sync` command
+`faire sync --stage <stage>` fulfils every distribution bound to the stage: `datalad push` / `git annex copy` for one-way hosts, and the merge, resolve, push exchange of D19 for the hub. One command keeps the mental model simple (a distribution is a distribution) and gives indexing, CI jobs and people the same entry point; `--distribution` narrows a run.
 
 ### D30. Native CI engines, not an external one
 Considered using one external CI engine across all platforms (Woodpecker, Jenkins, Buildkite, or a portable pipeline engine such as Dagger inside any CI). Not adopted: it would move logs, artifacts and status away from the pull request, add a service and a second secret store to operate at each site, and none of them is better suited to HPC runners than the platforms' own. Because the plan is neutral, an external engine would only be one more renderer if that changes. This assessment is from general knowledge and was not verified against current versions of those tools.

@@ -33,12 +33,20 @@ A distribution declared two-way SHALL be fulfilled by synchronising history in b
 - **WHEN** a two-way distribution to the hub is fulfilled
 - **THEN** the dataset holds the hub's accepted changes and the hub holds the site's
 
-### Requirement: Fulfilment command
-The tool SHALL provide a command that fulfils the distributions of a dataset for a named stage, usable by CI jobs and by processes outside the platform such as indexing.
+### Requirement: Single sync command
+The tool SHALL provide one `sync` command for all exchanges between a dataset and its distributions' hosts. Given a dataset and a lifecycle stage, it SHALL fulfil the distributions bound to that stage: one-way distributions by transferring content and history to their host, and two-way distributions by exchanging history in both directions as specified by the federation capability. It SHALL be usable by CI jobs and by processes outside the platform such as indexing, and SHALL allow limiting a run to named distributions.
 
-#### Scenario: Ingestion uses the command
-- **WHEN** an indexing process runs the command for stage `collection` on a sample branch
+#### Scenario: Indexing uses the command
+- **WHEN** an indexing process runs `sync` for stage `collection` on a newly indexed sample
 - **THEN** the sample's content is transferred to the hosts of the `collection` distributions
+
+#### Scenario: Storage and hub in one run
+- **WHEN** `sync` is run for stage `accepted` on a dataset with a one-way distribution to site storage and a two-way distribution to the hub, both bound to `accepted`
+- **THEN** the content reaches the site storage, and the dataset and the hub hold each other's accepted changes
+
+#### Scenario: One distribution only
+- **WHEN** `sync` is run naming a single distribution
+- **THEN** only that distribution is fulfilled
 
 ### Requirement: Transfers tracked by git-annex
 Where the host can be reached as a git-annex remote, content SHALL be transferred through git-annex so that the dataset records the presence of each file on that host. After a successful transfer, that record SHALL be available to every clone of the dataset.
