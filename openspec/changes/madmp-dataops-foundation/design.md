@@ -4,7 +4,7 @@ The repository is empty apart from OpenSpec scaffolding, so this is a greenfield
 
 - The RDA DMP Common Standard v1.3 schema allows additional properties but defines no extension mechanism, no dataset versions and no lifecycle stages. Its only native link between datasets is `dataset.related_identifier` with a DataCite relation type.
 - Datasets are DataLad datasets following YODA: inputs are subdatasets, computations are `datalad run` / `datalad containers-run` records.
-- Orchestration happens on a DevOps platform with CI runners. A GitLab proof of concept exists outside this repository (nested groups, multi-project pipelines); it was not inspected for this design.
+- Orchestration happens on a DevOps platform with CI runners. A neuroimaging proof of concept exists as GitLab CI templates (`ni-dataops/ci-pipelines`, branch `dev`). Its shared templates, BIDS and derivative pipelines and federation job were read; about half of the per-pipeline files were not. This design generalises it: pipeline logic moves from platform YAML into the tool, the heuristic `.derivatives` list is replaced by the ma-DMP, and its federation job (merge from the federated sibling, resolve, push) becomes the sync command.
 - STAMPED was read only at the level of its seven one-line definitions; its MUST/SHOULD/MAY checklist was not retrievable and is not yet mapped to requirements.
 
 ```
@@ -41,7 +41,7 @@ The repository is empty apart from OpenSpec scaffolding, so this is a greenfield
 ## Decisions
 
 ### D1. Extension carried in one namespaced property
-Profile data lives under a single property (working name `dataops`) on `dataset`, `distribution` and `host`. Removing it yields a plain standard document, which is easy to test.
+The tool is named `faire` ("doing" in French, echoing FAIR). Profile data lives under a single property named `faire` on `dmp`, `dataset`, `distribution` and `host`. Removing it yields a plain standard document, which is easy to test.
 *Alternatives:* top-level prefixed fields on each entity (noisier, harder to strip); a sidecar file (two sources of truth, breaks "bootstrap from the ma-DMP").
 
 ### D2. Provenance uses the standard's `related_identifier`
@@ -70,7 +70,7 @@ Each dataset stores a small machine-readable record of the ma-DMP entry it was c
 
 ### D9. Cascade driven by merge events, one level at a time
 A merge into `dev` runs a job in the upstream repository that triggers each direct downstream pipeline with `sample` and `revision` variables. The downstream job creates or updates `feature/<sample>`, bumps the `sourcedata/` pointer, runs the template's pipeline through `datalad containers-run`, pushes, and opens or updates the pull request. The list of downstream datasets is derived from the ma-DMP and set as CI configuration by bootstrap, so adding a derivative needs no change to upstream templates.
-For datasets with several sources, each source's merge triggers the same sample branch; whether the inputs are complete enough to run is decided by the dataset's pipeline, which may end without results until the last source arrives.
+For datasets with several sources, each triggering source's merge triggers the same sample branch; the rule's required inputs (D15) decide whether it runs, so the run is skipped until the last needed source arrives.
 *Alternative:* a central orchestrator service watching all repositories. Rejected: more to operate, and platform pipelines already provide this.
 
 ### D10. Release is study-wide and manual
@@ -89,14 +89,52 @@ Archival pushes each repository and its annexed content to the archival hosts an
 ### D14. Platform interface
 One interface with the operations listed in `specs/platform-orchestration`, a GitLab implementation, and an in-memory fake used by tests. Capability checks happen before any change is made.
 
+### D15. Processing rule file plus a `run` command
+The template renders a rule file in each derived dataset: container name, command, per-source input patterns, required inputs, output patterns, all parameterised by the study's sample entities. `run --sample <entities>` does everything a proof-of-concept job did in YAML: sample branch, pointer update, `datalad get` of resolved inputs only, `datalad containers-run`, push to working storage and origin, pull request. CI definitions shrink to one call, which is what makes a second platform cheap. Required inputs that match nothing end the run with status zero and no change; this replaces the per-sample `.derivatives` heuristics.
+*Alternative:* rules in the ma-DMP. Rejected: the ma-DMP should say what is derived from what, and commands and patterns change with the template version, which is already pinned per dataset.
+
+### D16. Triggering versus resource sources
+Marked in the extension per source. Both are `sourcedata/` subdatasets; only triggering sources appear in the upstream's downstream-trigger configuration.
+
+### D17. Pilot stream
+A long-lived `pilot` branch per dataset, never merged into `dev`. Ingestion marks pilot samples; the pull request target follows the mark. The template's protocol tool (forbids for MRI in the proof of concept) derives the expectations from pilot data and commits them; on production pull requests the same tool runs as a non-blocking check. Blocking checks and advisory checks are distinguished in the template.
+
+### D18. Sites and site configuration
+A site is an identifier plus runners, storage and secrets. Site files live in the study superdataset (`sites/<site>` as a working layout) and map site-dependent host names to concrete remotes and runner tags. Every command takes the site from its environment. Site-scoped datasets are instantiated as `<dataset>_<site>`. The same model covers the hub-orchestrated deployment, where only job routing and storage differ per site.
+
+### D19. Federation as a two-way distribution with a sync command
+`sync` walks federated datasets in provenance order and, per branch (`dev`, `main`, `pilot`): merges from the hub, resolves, pushes to the hub. Union merges come from the template's `.gitattributes`. Subdataset pointer conflicts are resolved by ancestry, never by date: the descendant wins, and for diverged pointers the already-synchronised source head is used. Anything else aborts that dataset's sync without pushing. git-annex location tracking travels with the `git-annex` branch, so sites learn where content is even when the hub is git-only. Received samples are not reprocessed because downstream triggers fire on pull request merges, not on sync merges.
+*Alternative:* resolve pointer conflicts by commit date, as "most recent" might suggest. Rejected: dates are unreliable across sites, ancestry is not.
+
+### D20. Federated release
+The ma-DMP names the coordinator (a site, or the hub in the hub-orchestrated deployment). The coordinator's release pipeline checks that the hub holds every site's accepted work, tags, and pushes to the hub. Each site's sync picks up the tag and runs release-stage fulfilment for the files it holds. The coordinator polls completeness through git-annex location tracking (`git annex find` on the tag with the distribution's filter, not present on the release remote), then creates or finalises the external repository, obtains identifiers and writes the ma-DMP. Only the coordinator writes the ma-DMP, which removes cross-site conflicts on that file.
+
+### D21. Remotes created per stage
+Bootstrap creates remotes for `collection`, `review` and `accepted` distributions with `git annex wanted` set from the filters (for example a general store with `not metadata=...sensitive` and a sensitive-only store, as in the proof of concept). `release` and `archival` remotes are created by the first fulfilment at that stage.
+
+### D22. Identifiable content is annexed, kept local, never purged
+Templates route every file that may hold identifiable content to the annex through `.gitattributes`, so nothing identifiable enters git history. De-identification commits a new version; the original key is tagged sensitive and lives only on the site's sensitive-only remote, so it remains retrievable locally (for example to return to non-defaced images) while wanted rules keep it off every shared or external remote.
+
+### D23. Pilot content is local
+`pilot` history is synchronised, but pilot content is excluded from the hub and all external remotes, since pilots may be acquired under separate ethics. Implemented by tagging pilot keys at ingestion and in pilot runs, and adding that tag to the exclusion of every non-site remote.
+
+### D24. Archival is a release to long-term hosts
+Archival reuses the release machinery (first-use remote creation, per-site delivery, coordinator completion) for distributions bound to `archival`, whose hosts must be declared long-term in the ma-DMP. The only extra step is making subdataset references resolvable without the platform (D13).
+
+### D25. The ma-DMP is edited by pull request
+The study superdataset runs `faire validate` on pull requests touching the ma-DMP. In a federated study the hub's study superdataset is authoritative; sites install it and receive revisions by sync. In the hub-orchestrated deployment sites deploy only ingestion services and runners.
+
 ## Risks / Trade-offs
 
 - [The profile depends on fields of v1.3 that were read from the README, not the schema files] → the first task checks `dataset.related_identifier` and additional-property rules against the published schema before the profile schema is written.
 - [Concurrent write-backs to the ma-DMP conflict] → serialise write-back jobs and retry on non-fast-forward.
 - [Many samples produce many pull requests and pipelines] → accepted for now; batching several samples in one pull request is compatible with the branch interface and can be added later.
-- [De-identification in a pull request leaves identifiable content reachable through earlier commits or annex keys] → not solved here; see Open Questions. Until then, templates should keep identifiable content out of platform-visible storage or drop the keys explicitly.
 - [Study-wide release is blocked by any single lagging dataset] → the refusal lists exactly which datasets are behind; a partial release is deliberately not offered.
 - [Platform neutrality limited by GitLab-only features such as nested groups and multi-project pipelines] → the interface asks for a "grouping" and a "trigger pipeline in another repository" operation; a platform lacking them fails the capability check instead of degrading silently.
+- [A site's storage is usually reachable only from its own network, so off-site runners may fail to fetch inputs] → stated as a deployment condition; the run command fails early naming the unreachable storage.
+- [A federated release stalls if one site never delivers its files] → release status names the sites owing files; the coordinator does not mint identifiers until complete.
+- [A sync conflict outside the declared rules blocks a dataset at one site] → the hub and protected branches are left untouched and the conflict is reported for manual resolution.
+- [Sensitive file names and history still reach other sites even though content does not] → accepted; templates must keep sensitive information out of file names and tracked text files.
 - [STAMPED conformance is asserted, not checked] → mapping the checklist to requirements is deferred until its item text is available.
 
 ## Migration Plan
@@ -105,8 +143,7 @@ Not applicable: nothing exists to migrate. The existing GitLab proof of concept 
 
 ## Open Questions
 
-- Final name of the tool and of the extension namespace (`dataops` is a working name).
-- How identifiable content is purged after de-identification (dropping annex keys, rewriting the feature branch before merge, or keeping raw content in a restricted dataset upstream).
 - Whether merging a pull request needs human approval in addition to passing checks, or whether that is a per-template policy.
-- Which archival hosts and formats to support first.
+- The exact format of the protocol expectations derived from pilots, which is left to each template's protocol tool.
+- Which long-term hosts to support first for archival.
 - Mapping of the STAMPED checklist items to requirements once the checklist text is available.

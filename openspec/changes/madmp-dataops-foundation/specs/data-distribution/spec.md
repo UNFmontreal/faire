@@ -15,6 +15,24 @@ When data in a dataset enters a lifecycle stage, every distribution of that data
 - **WHEN** a sample's pull request is merged and the dataset has a distribution bound to `accepted`
 - **THEN** that sample's content is transferred to that distribution's host
 
+### Requirement: Late-stage remotes created on first use
+The storage remote or external repository of a distribution bound to `release` or `archival` SHALL be created the first time that stage is reached for the dataset, with the content rules derived from the distribution's filters, and reused afterwards.
+
+#### Scenario: First release
+- **WHEN** a dataset is released for the first time
+- **THEN** the remote for its `release` distribution is created with its content rules before any transfer
+
+#### Scenario: Second release
+- **WHEN** the dataset is released again
+- **THEN** the existing remote is reused and no new external repository is created
+
+### Requirement: Two-way distributions
+A distribution declared two-way SHALL be fulfilled by synchronising history in both directions with its host, as specified by the federation capability, in addition to transferring content allowed by its filters.
+
+#### Scenario: Hub distribution
+- **WHEN** a two-way distribution to the hub is fulfilled
+- **THEN** the dataset holds the hub's accepted changes and the hub holds the site's
+
 ### Requirement: Fulfilment command
 The tool SHALL provide a command that fulfils the distributions of a dataset for a named stage, usable by CI jobs and by processes outside the platform such as ingestion.
 
@@ -55,7 +73,11 @@ Fulfilment SHALL obtain host credentials from the secrets named in the ma-DMP an
 - **THEN** that distribution's fulfilment fails, the message names the missing secret, and other distributions are still attempted
 
 ### Requirement: Persistent identifiers at release
-When a release-stage distribution targets a host that provides a persistent identifier system, fulfilment SHALL obtain an identifier for the released dataset version and record it in that release's record in the ma-DMP.
+When a release-stage distribution targets a host that provides a persistent identifier system, fulfilment SHALL obtain an identifier for the released dataset version and record it in that release's record in the ma-DMP. The identifier SHALL be obtained only once every file selected for the release is recorded as present on that host.
+
+#### Scenario: Incomplete transfer
+- **WHEN** some files selected for a release are not yet present on the release host
+- **THEN** no identifier is obtained and the release is reported as incomplete
 
 #### Scenario: DOI minted
 - **WHEN** a dataset is released to a host that mints DOIs

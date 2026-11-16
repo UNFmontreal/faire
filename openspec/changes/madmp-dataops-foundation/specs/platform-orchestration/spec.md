@@ -23,7 +23,7 @@ Bootstrap SHALL place the study superdataset and all dataset repositories under 
 - **THEN** all its repositories are listed under a single grouping for the study
 
 ### Requirement: Branch protection
-Bootstrap SHALL configure every dataset repository so that `dev` and `main` accept changes only through merged pull requests or the automation identity, and so that release tags can be created only by maintainers or the automation identity.
+Bootstrap SHALL configure every dataset repository so that `dev`, `pilot` and `main` accept changes only through merged pull requests or the automation identity, and so that release tags can be created only by maintainers or the automation identity.
 
 #### Scenario: Protection applied
 - **WHEN** a dataset repository has been created by bootstrap

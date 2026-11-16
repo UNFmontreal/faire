@@ -44,6 +44,32 @@ For each `IsDerivedFrom` link, the source dataset SHALL be registered as a subda
 - **WHEN** a dataset declares no source dataset
 - **THEN** the created dataset has no subdataset under `sourcedata/` that refers to a dataset of the plan
 
+#### Scenario: Resource source
+- **WHEN** a dataset declares a resource-only source
+- **THEN** that source is also registered under `sourcedata/` at a pinned revision
+
+### Requirement: Bootstrap for a site
+Bootstrap SHALL run on behalf of one site, using that site's configuration from the study superdataset to resolve site-dependent hosts. It SHALL create that site's instance of each site-scoped dataset, named with the site identifier, and register each instance as a source of the datasets derived from it.
+
+#### Scenario: Site-scoped source
+- **WHEN** bootstrap runs for site `a` on a plan with a site-scoped root dataset `instrument`
+- **THEN** an instance of `instrument` for site `a` exists and is registered under `sourcedata/` of the datasets derived from `instrument`
+
+#### Scenario: Unmapped host
+- **WHEN** the site configuration does not map a site-dependent host used by the plan
+- **THEN** bootstrap fails before creating anything and names the host
+
+### Requirement: Storage remotes for the early stages
+Bootstrap SHALL create and configure, in each dataset, the storage remotes for its distributions bound to `collection`, `review` and `accepted`, and SHALL set on each remote the content rules derived from the distribution's filters. Bootstrap SHALL NOT create remotes or external repositories for distributions bound to `release` or `archival`.
+
+#### Scenario: Working storage ready
+- **WHEN** a dataset has a `review` distribution excluding sensitive files and a `release` distribution
+- **THEN** after bootstrap the dataset has a remote for the `review` distribution whose content rule excludes sensitive files, and no remote for the `release` distribution
+
+#### Scenario: Sensitive-only storage
+- **WHEN** a dataset has a distribution whose filter includes only sensitive files
+- **THEN** the remote created for it accepts only files marked sensitive
+
 ### Requirement: Creation in provenance order
 Datasets SHALL be created in an order in which every source dataset exists before any dataset derived from it.
 
@@ -57,6 +83,17 @@ Bootstrap SHALL create a study superdataset that tracks the ma-DMP file under ve
 #### Scenario: Whole project from one clone
 - **WHEN** a user clones the study superdataset and installs its subdatasets
 - **THEN** every dataset of the plan is present at the path the study layout assigns to it, and the ma-DMP file is present
+
+### Requirement: ma-DMP changes are reviewed and validated
+The study superdataset SHALL accept changes to the ma-DMP only through pull requests, on which profile validation runs automatically. A pull request whose ma-DMP fails validation SHALL NOT be mergeable.
+
+#### Scenario: Invalid edit proposed
+- **WHEN** a pull request changes the ma-DMP so that it fails profile validation
+- **THEN** the pull request shows the violations and cannot be merged
+
+#### Scenario: Valid addition
+- **WHEN** a pull request adding a derived dataset to the ma-DMP passes validation and is merged
+- **THEN** the next bootstrap run creates that dataset
 
 ### Requirement: Datasets created on the platform
 Bootstrap SHALL create each dataset and the study superdataset as a repository on the configured DevOps platform, with the subdataset references between them pointing at those repositories. A local-only mode SHALL create the same structure without any platform.

@@ -66,6 +66,17 @@ Each distribution SHALL declare, in the extension, the lifecycle stage at which 
 - **WHEN** a dataset declares one distribution at stage `accepted` and another at stage `release`
 - **THEN** validation succeeds
 
+### Requirement: Archival distributions target long-term hosts
+A distribution bound to `archival` SHALL target a host that the ma-DMP declares as supporting long-term preservation.
+
+#### Scenario: Long-term host
+- **WHEN** an `archival` distribution targets a host declared as supporting long-term preservation
+- **THEN** validation succeeds
+
+#### Scenario: Ordinary host
+- **WHEN** an `archival` distribution targets a host with no long-term preservation declaration
+- **THEN** validation fails and names the distribution and the host
+
 ### Requirement: File filters of a distribution
 A distribution MAY declare, in the extension, include and exclude filters that select files by path pattern and by file metadata. A distribution without filters SHALL cover all files of the dataset.
 
@@ -94,6 +105,61 @@ The extension SHALL allow each dataset to carry a list of releases. Each release
 #### Scenario: Dataset with two releases
 - **WHEN** a dataset has been released twice
 - **THEN** its extension lists two release records in release order, each with its own revision and identifiers
+
+### Requirement: Triggering and resource sources
+The extension SHALL mark each source of a dataset as either triggering or resource-only. A source with no mark SHALL be triggering. A derived dataset SHALL have at least one triggering source.
+
+#### Scenario: Atlas as a resource
+- **WHEN** a dataset declares one triggering source and an atlas dataset marked resource-only
+- **THEN** validation succeeds and the atlas is reported as a resource of that dataset
+
+#### Scenario: Only resources
+- **WHEN** every source of a derived dataset is marked resource-only
+- **THEN** validation fails and names the dataset
+
+### Requirement: Sample entities
+The ma-DMP SHALL declare, once for the study, the ordered list of entity names that identify a sample. All datasets of the study SHALL use these names.
+
+#### Scenario: Entities declared
+- **WHEN** the ma-DMP declares the sample entities `subject` and `session`
+- **THEN** validation succeeds and tooling identifies every sample by a value for each of the two
+
+#### Scenario: No entities
+- **WHEN** the ma-DMP declares no sample entity
+- **THEN** validation fails
+
+### Requirement: Site-scoped datasets
+The extension SHALL allow a dataset to be marked as site-scoped, meaning one instance of it exists per site. A site-scoped dataset SHALL NOT have a distribution to the hub or to any `release`-stage host. A dataset derived from a site-scoped dataset has every site's instance as a source.
+
+#### Scenario: Instrument source data
+- **WHEN** a root dataset is marked site-scoped and has only distributions to site storage
+- **THEN** validation succeeds
+
+#### Scenario: Site-scoped dataset with an external distribution
+- **WHEN** a site-scoped dataset declares a distribution bound to `release`
+- **THEN** validation fails and names the dataset and the distribution
+
+### Requirement: Site-dependent hosts
+The extension SHALL allow a distribution's host to be declared as site-dependent, in which case the ma-DMP gives only a host name and each site's configuration supplies the actual storage.
+
+#### Scenario: Working storage per site
+- **WHEN** a distribution bound to `review` names a site-dependent host
+- **THEN** validation of the ma-DMP succeeds without any storage location for that host
+
+### Requirement: Hub and two-way distributions
+The ma-DMP MAY declare one hub and one coordinator for the study. A distribution MAY be declared two-way, and a two-way distribution SHALL target the hub. A study that declares a hub SHALL declare a coordinator.
+
+#### Scenario: Federated dataset
+- **WHEN** a dataset declares a two-way distribution to the declared hub with a filter excluding sensitive files
+- **THEN** validation succeeds and the dataset is reported as federated
+
+#### Scenario: Two-way distribution elsewhere
+- **WHEN** a distribution to a host other than the hub is declared two-way
+- **THEN** validation fails and names the distribution
+
+#### Scenario: Hub without coordinator
+- **WHEN** the ma-DMP declares a hub and no coordinator
+- **THEN** validation fails
 
 ### Requirement: Validation command
 The tool SHALL provide a command that validates a ma-DMP against the base standard and the profile, reports every violation with its location in the document, and exits with a non-zero status when any violation exists.
