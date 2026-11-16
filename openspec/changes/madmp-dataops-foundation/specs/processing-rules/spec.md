@@ -90,6 +90,17 @@ The run command SHALL be able to execute in a fresh, temporary clone and SHALL l
 - **WHEN** the workspace of a completed run is deleted
 - **THEN** the pull request, its outputs and its run record remain retrievable
 
+### Requirement: Results re-executable from their record
+Any result accepted on `dev` or contained in a release SHALL be re-executable from its run record using only the dataset, the components it references at their recorded revisions, and access to the storage holding its inputs. The record SHALL identify the revision of every component involved: the sources, the container and the processing rule.
+
+#### Scenario: Re-execution by someone with access
+- **WHEN** a person with access to the inputs re-executes the run record of an accepted result in a fresh clone
+- **THEN** the computation runs with the same container, command and input revisions without any step not described in the dataset
+
+#### Scenario: Component versions recorded
+- **WHEN** the history of an accepted result is inspected
+- **THEN** the revision of each source, the container version and the processing rule version used are all identifiable
+
 ### Requirement: Re-running a sample
 Running the rule again for a sample that already has results in the dataset SHALL replace that sample's previous outputs in a new pull request and SHALL NOT alter other samples' outputs.
 

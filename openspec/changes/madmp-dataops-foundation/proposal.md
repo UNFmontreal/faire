@@ -12,9 +12,10 @@ Research projects that manage their data with DataLad and YODA still wire up dat
 - Define **processing rules**: the ma-DMP says what is derived from what (with triggering and resource-only sources), the dataset template says how, and one `run` command executes a dataset's rule for one sample, in CI or by hand, handling input retrieval, storage credentials, provenance capture, result push and the pull request. Samples lacking a rule's required inputs are skipped silently.
 - Add a **pilot stream** separate from production, from which the protocol expectations checked on production samples are established; protocol deviations warn the curator without blocking.
 - Define optional **federation**: several sites share one ma-DMP with per-site configuration, keep source and sensitive data local, process their own samples, synchronise non-sensitive datasets in both directions through a hub with defined conflict resolution, and release together under one coordinator.
+- Add a generic **indexer**: an `index` command that records newly received instrument data in a site's source dataset, guided by a Python heuristic carried by the dataset template (sample entities, pilot status, file selection, sensitive marking, layout, optional per-sample subdataset), then pushes content and history, which starts the pipeline.
 - Define a **platform abstraction** for repository creation, branch protection, CI variables and cross-dataset triggers, with GitLab as the reference implementation.
 
-Out of scope for this change: ingestion of instrument data (only the interface a sample branch must satisfy is specified), group-level derivatives triggered by upstream releases, a Forgejo implementation, and domain-specific templates beyond one minimal reference template.
+Out of scope for this change: instrument-specific acquisition and transfer of data to the site (indexing starts from a local directory of received files), scheduled probing of external storage, group-level derivatives triggered by upstream releases, a Forgejo implementation, and domain-specific templates beyond one minimal reference template.
 
 ## Capabilities
 
@@ -26,6 +27,7 @@ Out of scope for this change: ingestion of instrument data (only the interface a
 - `data-distribution`: fulfilling the ma-DMP's distributions at their lifecycle stage, with file filters, identifier minting and write-back of facts.
 - `processing-rules`: how a dataset's computation for one sample is declared and executed through a single run command.
 - `federation`: multi-site operation through a hub: site configuration, two-way synchronisation, conflict resolution and coordinated release.
+- `data-indexing`: bringing received instrument data into a site's source dataset with a heuristic-driven generic indexer.
 - `platform-orchestration`: the DevOps platform operations the tool relies on (repositories, protections, CI configuration, cross-dataset triggers), independent of a specific platform.
 
 ### Modified Capabilities

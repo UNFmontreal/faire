@@ -33,6 +33,17 @@ Each dataset SHALL declare, in the extension, the git template it is created fro
 - **WHEN** a dataset's template declaration gives a repository location without a pinned version
 - **THEN** validation fails and names the dataset
 
+### Requirement: License on every dataset
+Each dataset SHALL declare a license by a resolvable identifier.
+
+#### Scenario: Missing license
+- **WHEN** a dataset declares no license
+- **THEN** validation fails and names the dataset
+
+#### Scenario: Unresolvable license
+- **WHEN** a dataset's license is given as free text with no resolvable identifier
+- **THEN** validation fails and names the dataset
+
 ### Requirement: Provenance links between datasets
 A dataset derived from other datasets of the project SHALL declare each source with the standard's `related_identifier` using the relation type `IsDerivedFrom` and the source dataset's identifier. The set of all such links in a ma-DMP SHALL form a directed acyclic graph. A dataset with no such link is a root dataset holding collected data.
 

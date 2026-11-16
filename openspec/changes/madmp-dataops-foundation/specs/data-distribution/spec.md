@@ -34,10 +34,10 @@ A distribution declared two-way SHALL be fulfilled by synchronising history in b
 - **THEN** the dataset holds the hub's accepted changes and the hub holds the site's
 
 ### Requirement: Fulfilment command
-The tool SHALL provide a command that fulfils the distributions of a dataset for a named stage, usable by CI jobs and by processes outside the platform such as ingestion.
+The tool SHALL provide a command that fulfils the distributions of a dataset for a named stage, usable by CI jobs and by processes outside the platform such as indexing.
 
 #### Scenario: Ingestion uses the command
-- **WHEN** an ingestion process runs the command for stage `collection` on a sample branch
+- **WHEN** an indexing process runs the command for stage `collection` on a sample branch
 - **THEN** the sample's content is transferred to the hosts of the `collection` distributions
 
 ### Requirement: Transfers tracked by git-annex

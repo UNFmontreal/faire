@@ -5,24 +5,28 @@ Defines how data moves through each dataset and across the provenance graph for 
 ## ADDED Requirements
 
 ### Requirement: Branch model
-Every dataset SHALL have a `dev` branch that accumulates accepted samples and a `main` branch that holds released states. Changes SHALL reach `dev` only through merged pull requests or, in a federated study, through synchronisation with the hub, and `main` only through the release process.
+Every dataset SHALL have a `dev` branch that accumulates accepted samples and a `main` branch that holds released states. Changes SHALL reach `dev` only through merged pull requests, through indexing in source datasets or, in a federated study, through synchronisation with the hub, and `main` only through the release process.
 
 #### Scenario: Direct push refused
 - **WHEN** a contributor pushes a commit directly to `dev` or `main` of a dataset
 - **THEN** the platform rejects the push
 
 ### Requirement: Lifecycle stages
-The lifecycle of a sample in a dataset SHALL consist of the stages `collection` (the sample exists on a feature branch), `review` (a pull request for it is open against `dev`), `accepted` (the pull request is merged), `release` (the sample is part of a tagged state of `main`) and `archival` (the project has been archived). The tool SHALL be able to report the current stage of any sample in any dataset.
+The lifecycle of a sample in a dataset SHALL consist of the stages `collection` (the sample is indexed in a source dataset or exists on a feature branch), `review` (a pull request for it is open against `dev`), `accepted` (the pull request is merged), `release` (the sample is part of a tagged state of `main`) and `archival` (the project has been archived). The tool SHALL be able to report the current stage of any sample in any dataset.
 
 #### Scenario: Stage query
 - **WHEN** a sample has an open pull request against `dev` in a dataset
 - **THEN** the tool reports that sample's stage in that dataset as `review`
 
-### Requirement: Sample branch interface
-A sample SHALL enter a root dataset as a feature branch carrying the sample's identifier, pushed by an ingestion process outside the scope of this tool, together with the annexed content reachable from a storage the CI runners can read. Pushing such a branch SHALL result in an open pull request against `dev`.
+### Requirement: Sample entry into source datasets
+A sample SHALL enter a site-scoped source dataset by being indexed, as specified by the data-indexing capability, which records it directly on `dev`, or on `pilot` for a pilot sample, without a pull request. A sample contributed to a root dataset by any other means SHALL arrive as a feature branch carrying the sample's entities and be proposed by pull request. In both cases the sample's content SHALL be reachable from storage the site's runners can read. Review of collected data takes place in the first derived dataset.
 
-#### Scenario: New sample pushed
-- **WHEN** an ingestion process pushes a feature branch for sample `S` to a root dataset
+#### Scenario: Indexed sample
+- **WHEN** a production sample is indexed into a site's source dataset
+- **THEN** it is on that dataset's `dev` with no pull request, and the first derived dataset has an open pull request for it
+
+#### Scenario: Manual contribution
+- **WHEN** a contributor pushes a feature branch for sample `S` to a root dataset that is not fed by indexing
 - **THEN** a pull request from that branch to `dev` is open and identifies sample `S`
 
 ### Requirement: Review checks and inline processing
@@ -59,11 +63,11 @@ A check that a sample contains the files and metadata the study protocol expects
 - **THEN** that downstream dataset opens no pull request for the sample and reports no failure
 
 ### Requirement: Pilot stream
-Every dataset SHALL have a `pilot` branch separate from `dev`. A sample marked as pilot at ingestion SHALL be proposed by pull request to `pilot` and SHALL cascade to the `pilot` branches of downstream datasets. Pilot samples SHALL NOT enter `dev` or `main` and SHALL NOT be part of any release. The annexed content of pilot samples SHALL stay on the storage of the site that acquired it and SHALL NOT be transferred to the hub, to another site or to any external host; the version history of `pilot` MAY be shared. The protocol expectations used to check production samples SHALL be established from accepted pilot samples and kept in the dataset under version control.
+Every dataset SHALL have a `pilot` branch separate from `dev`. A sample marked as pilot at indexing SHALL be recorded on `pilot` in its source dataset, SHALL be proposed by pull request to `pilot` in derived datasets, and SHALL cascade to the `pilot` branches of downstream datasets. Pilot samples SHALL NOT enter `dev` or `main` and SHALL NOT be part of any release. The annexed content of pilot samples SHALL stay on the storage of the site that acquired it and SHALL NOT be transferred to the hub, to another site or to any external host; the version history of `pilot` MAY be shared. The protocol expectations used to check production samples SHALL be established from accepted pilot samples and kept in the dataset under version control.
 
 #### Scenario: Pilot sample
-- **WHEN** an ingestion process pushes a feature branch for a sample marked as pilot
-- **THEN** the pull request targets `pilot`, and after merge the downstream pull request for that sample also targets `pilot`
+- **WHEN** a sample marked as pilot is indexed
+- **THEN** the first derived dataset's pull request for it targets `pilot`, and after merge the next downstream pull request for that sample also targets `pilot`
 
 #### Scenario: Pilot content stays local
 - **WHEN** a site synchronises a dataset holding pilot samples with the hub
@@ -85,7 +89,7 @@ Every computation that produces or changes dataset content SHALL be executed thr
 - **THEN** the commit that adds them carries a run record from which the computation can be re-executed
 
 ### Requirement: Per-sample cascade to direct downstream datasets
-When a sample's pull request is merged into `dev` of a dataset, each dataset for which it is a triggering source SHALL be triggered for that sample. The triggered dataset SHALL run its processing rule for that sample, as specified by the processing-rules capability, resulting in a pull request against its own `dev` whose `sourcedata/` reference is the merged state. Datasets further downstream SHALL be triggered only when that pull request is merged in turn.
+When a sample's pull request is merged into `dev` of a dataset, or a sample is indexed into a source dataset, each dataset for which it is a triggering source SHALL be triggered for that sample. The triggered dataset SHALL run its processing rule for that sample, as specified by the processing-rules capability, resulting in a pull request against its own `dev` whose `sourcedata/` reference is the merged state. Datasets further downstream SHALL be triggered only when that pull request is merged in turn.
 
 #### Scenario: One level
 - **WHEN** the pull request for sample `S` is merged in dataset `raw`, and `standardized` is derived from `raw`
@@ -133,6 +137,28 @@ A release SHALL be refused, with no dataset tagged, unless every derived dataset
 #### Scenario: Consistent graph
 - **WHEN** every derived dataset references the current `dev` state of each of its sources
 - **THEN** the release proceeds
+
+### Requirement: Referenced components retrievable at release
+Before tagging, a release SHALL verify that every component a dataset references, namely its sources, resources and containers, is pinned to an exact revision and is one of: a dataset of the plan included in the release; a dataset the ma-DMP declares as access-restricted; or an externally managed component whose recorded location answers for that revision. The release SHALL be refused, with no dataset tagged, when a component meets none of these, and the refusal SHALL name it. Externally managed components, such as shared container collections, SHALL NOT be copied to the release hosts; their long-term persistence is outside the study's responsibility.
+
+#### Scenario: External container collection
+- **WHEN** a dataset uses a container from a collection managed outside the study, pinned to a revision its location still serves
+- **THEN** the release proceeds, the container is not copied to the release host, and the release report lists it as externally managed with its location and revision
+
+#### Scenario: Unretrievable component
+- **WHEN** a dataset references a container revision that its recorded location no longer serves
+- **THEN** no dataset is tagged and the report names the dataset and the container
+
+#### Scenario: Restricted source data
+- **WHEN** a released dataset derives from a site-scoped source dataset declared access-restricted
+- **THEN** the release proceeds and the report lists that source as restricted, with its location and revision
+
+### Requirement: License report at release
+A release SHALL produce a report listing, for each dataset, its license next to the licenses of the components it references, for human review. The report SHALL NOT block the release.
+
+#### Scenario: Differing licenses
+- **WHEN** a derived dataset's license differs from the license of one of its sources
+- **THEN** the report shows both and the release proceeds
 
 ### Requirement: Multiple releases
 A dataset SHALL support any number of successive releases. Each release SHALL be recorded in the ma-DMP as a release record for each dataset, and earlier releases SHALL remain retrievable by their release identifier.

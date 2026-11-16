@@ -5,7 +5,7 @@ The repository is empty apart from OpenSpec scaffolding, so this is a greenfield
 - The RDA DMP Common Standard v1.3 schema allows additional properties but defines no extension mechanism, no dataset versions and no lifecycle stages. Its only native link between datasets is `dataset.related_identifier` with a DataCite relation type.
 - Datasets are DataLad datasets following YODA: inputs are subdatasets, computations are `datalad run` / `datalad containers-run` records.
 - Orchestration happens on a DevOps platform with CI runners. A neuroimaging proof of concept exists as GitLab CI templates (`ni-dataops/ci-pipelines`, branch `dev`). Its shared templates, BIDS and derivative pipelines and federation job were read; about half of the per-pipeline files were not. This design generalises it: pipeline logic moves from platform YAML into the tool, the heuristic `.derivatives` list is replaced by the ma-DMP, and its federation job (merge from the federated sibling, resolve, push) becomes the sync command.
-- STAMPED was read only at the level of its seven one-line definitions; its MUST/SHOULD/MAY checklist was not retrievable and is not yet mapped to requirements.
+- The STAMPED paper's normative requirements (S.1 to D.3) were read and are mapped in D26; the interactive checklist items were not.
 
 ```
                  study superdataset  (ma-DMP + user-oriented layout)
@@ -31,7 +31,7 @@ The repository is empty apart from OpenSpec scaffolding, so this is a greenfield
 
 **Non-Goals:**
 
-- Ingestion of instrument data. Only the sample branch interface is fixed. Scheduled probing of external storage and cross-modality fetches are later work.
+- Acquisition and transfer of instrument data to the site. `faire index` starts from a local directory of received files. Scheduled probing of external storage and cross-modality fetches are later work, though a scheduled job can call `index` after its own fetch.
 - Derivatives triggered by an upstream release (group-level analyses). The trigger model leaves room for it; nothing is built.
 - Forgejo or GitHub implementations.
 - Domain templates (BIDS, heudiconv, and so on). One minimal reference dataset template and one study template are delivered to exercise the system.
@@ -124,6 +124,32 @@ Archival reuses the release machinery (first-use remote creation, per-site deliv
 ### D25. The ma-DMP is edited by pull request
 The study superdataset runs `faire validate` on pull requests touching the ma-DMP. In a federated study the hub's study superdataset is authoritative; sites install it and receive revisions by sync. In the hub-orchestrated deployment sites deploy only ingestion services and runners.
 
+### D26. STAMPED conformance
+Mapping of the paper's requirements to this change:
+
+| Req. | Met by |
+|---|---|
+| S.1 | Sources, resources and containers are subdatasets of each dataset; the study superdataset gathers everything |
+| S.2, D.3 | Bootstrap writes the ma-DMP license into each dataset with its SPDX identifier (REUSE-style) |
+| T.1, T.2 | git and git-annex content addressing for every component |
+| T.3, T.4 | `datalad run` / `containers-run` records; pinned sources, containers and template version. Indexing commits record the heuristic revision and sample entities; what happens before files reach the site is left to each ingestion tool |
+| A.1 | Generated entry-point README per dataset; accepted results must be re-executable (`datalad rerun`) |
+| A.2 | ma-DMP, rule file and `faire run` are executable specifications |
+| M.1, M.2 | One dataset per ma-DMP dataset, linked as subdatasets |
+| M.3 | License declared per dataset; compatibility is reported at release for human review, not checked automatically |
+| M.4 | Partial by choice: source data is a separate, site-scoped module, but sensitive files inside a standardized dataset are separated by file-level filters and a sensitive-only remote, not by a separate module |
+| P.1 to P.3 | Registered, digest-pinned containers; host specifics confined to site configuration |
+| E.1 | `faire run` works in a throwaway clone on a runner |
+| D.1 | Release check on every referenced component: in the release, declared restricted, or externally managed and answering at its pinned revision |
+| D.2 | Not addressed: reproducible builds of container images belong to the container collections |
+
+Containers are not copied at release: collections such as ReproNim containers, or collections shared across studies, have their own archival and persistence plans.
+*Alternative:* pushing used container images with each release. Rejected per discussion: it duplicates shared collections and blurs who is responsible for them.
+
+### D27. Generic indexer with a Python heuristic
+`faire index <dir>` clones the site's source dataset, imports the heuristic module from that clone, and applies its optional functions (entities, pilot, keep, sensitive, placement, subdataset name, subdataset setup). The setup callback receives the freshly created subdataset and runs before any file is added, typically to write `.gitattributes`; its result is saved as its own commit. Without it the parent's `.gitattributes` is copied. It then saves with DataLad, optionally through an archive mechanism so that thousands of small files become a few annexed archives while paths stay addressable, sets annex metadata for sensitive and pilot content before any copy, pushes content, then the subdataset, then the parent. Per-sample subdatasets are created with the same remote setup code as bootstrap, which is the main reuse argument. Indexed samples go straight to `dev` or `pilot` of the source dataset, as in the proof of concept where review happens on the standardized dataset; the push event carries the sample entities to the downstream trigger. The heuristic interface is expected to grow with new modalities, so every function is optional with a default.
+*Alternatives:* leaving ingestion entirely to external tools (duplicates git, storage and platform handling in each); a declarative mapping file instead of Python (too weak for metadata extraction from instrument formats).
+
 ## Risks / Trade-offs
 
 - [The profile depends on fields of v1.3 that were read from the README, not the schema files] → the first task checks `dataset.related_identifier` and additional-property rules against the published schema before the profile schema is written.
@@ -135,7 +161,10 @@ The study superdataset runs `faire validate` on pull requests touching the ma-DM
 - [A federated release stalls if one site never delivers its files] → release status names the sites owing files; the coordinator does not mint identifiers until complete.
 - [A sync conflict outside the declared rules blocks a dataset at one site] → the hub and protected branches are left untouched and the conflict is reported for manual resolution.
 - [Sensitive file names and history still reach other sites even though content does not] → accepted; templates must keep sensitive information out of file names and tracked text files.
-- [STAMPED conformance is asserted, not checked] → mapping the checklist to requirements is deferred until its item text is available.
+- [The heuristic is arbitrary Python executed with storage and platform credentials] → it is only loaded from the source dataset's own versioned content, changes to it go through pull requests, and dry-run mode shows its decisions.
+- [Indexed data enters `dev` of the source dataset without review] → accepted; source data is site-local and review takes place on the first derived dataset.
+- [STAMPED conformance is by design, not measured] → D26 records the mapping; running the STAMPED checklist against the example project is a documentation task.
+- [Externally managed containers may disappear after a release] → their persistence is their owners' responsibility; the release check only proves they were retrievable at release time and the report records location and revision.
 
 ## Migration Plan
 
@@ -144,6 +173,7 @@ Not applicable: nothing exists to migrate. The existing GitLab proof of concept 
 ## Open Questions
 
 - Whether merging a pull request needs human approval in addition to passing checks, or whether that is a per-template policy.
+- The exact signature of the heuristic functions, to be refined with each new modality.
+- Which archive mechanism to use for indexed files (annexed archives with extracted keys, or archive special remotes).
 - The exact format of the protocol expectations derived from pilots, which is left to each template's protocol tool.
 - Which long-term hosts to support first for archival.
-- Mapping of the STAMPED checklist items to requirements once the checklist text is available.

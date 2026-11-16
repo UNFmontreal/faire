@@ -26,6 +26,13 @@ Each dataset SHALL be created by rendering its declared template at its pinned v
 - **WHEN** a dataset's template cannot be fetched at the pinned version
 - **THEN** bootstrap fails for that dataset, names it and the template, and leaves no partially created dataset behind
 
+### Requirement: License and entry point carried by each dataset
+Each created dataset SHALL contain its license, as declared in the ma-DMP, in a machine-readable form with its identifier, and a human-readable entry point stating what the dataset is, what it is derived from, and how to obtain its content and re-execute its results.
+
+#### Scenario: License travels with the dataset
+- **WHEN** a dataset is cloned without the study superdataset or the ma-DMP
+- **THEN** its license identifier and its entry-point documentation are present in the clone
+
 ### Requirement: Execution environments registered as containers
 The containers a template declares SHALL be registered in the created dataset as DataLad containers, each pinned to an exact image version and tracked as a subdataset or annexed file, so that computations can be run with `datalad containers-run` without further setup.
 
