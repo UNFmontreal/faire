@@ -33,12 +33,35 @@ Each created dataset SHALL contain its license, as declared in the ma-DMP, in a 
 - **WHEN** a dataset is cloned without the study superdataset or the ma-DMP
 - **THEN** its license identifier and its entry-point documentation are present in the clone
 
-### Requirement: Execution environments registered as containers
-The containers a template declares SHALL be registered in the created dataset as DataLad containers, each pinned to an exact image version and tracked as a subdataset or annexed file, so that computations can be run with `datalad containers-run` without further setup.
+### Requirement: Container collections installed as subdatasets
+A template SHALL declare the container collections it uses, each with a source, a subdataset path and a pinned revision, and a dataset created from it SHALL have each collection installed as a subdataset at that path and revision. A template MAY declare several collections.
+
+#### Scenario: Collection installed
+- **WHEN** a template declares a collection with a path and a revision
+- **THEN** the created dataset has a subdataset at that path, at that revision
+
+#### Scenario: Two collections
+- **WHEN** a template declares two collections at different paths
+- **THEN** both are installed, each at its own path and revision
+
+### Requirement: Execution environments frozen as containers
+The containers a template declares SHALL be frozen in the created dataset: each declared container, named, with the collection it comes from and an image version, SHALL be registered in the dataset's own container configuration, pointing to that image file inside the collection subdataset, so that computations can be run with `datalad containers-run -n <name>` without further setup. The freeze SHALL be saved as a recorded step in the dataset's history. A frozen container SHALL keep working unchanged when the collection later gains new versions. A declared call format SHALL replace the collection's for that container, and files the call format relies on SHALL be declared as inputs of the runs that use it.
 
 #### Scenario: Container available after bootstrap
-- **WHEN** a template declares one container
-- **THEN** listing the containers of the created dataset shows that container at the pinned version
+- **WHEN** a template declares one container from an installed collection with an image version
+- **THEN** listing the containers of the created dataset shows that container, its image path points to that version's file in the collection subdataset, and the freeze is in the history
+
+#### Scenario: Collection moves on
+- **WHEN** the collection gains a newer image of the tool and the dataset's collection pointer is not updated
+- **THEN** the container still resolves to the frozen image
+
+#### Scenario: Study-specific call format
+- **WHEN** a template declares a call format for a container that differs from the collection's
+- **THEN** the dataset's frozen entry uses the declared call format and the collection subdataset is unchanged
+
+#### Scenario: Image absent from the collection
+- **WHEN** a declared image version does not exist in the collection at its pinned revision
+- **THEN** bootstrap fails, names the container and the collection, and reports the dataset as not created
 
 ### Requirement: Source datasets installed as subdatasets
 For each `IsDerivedFrom` link, the source dataset SHALL be registered as a subdataset of the derived dataset under `sourcedata/`, at a path named after the source dataset. For an instrument source dataset, each instance SHALL be registered at `sourcedata/<stream type>/<site identifier>_<instrument identifier>`, where the stream type is the source dataset's name and only the last level is a subdataset.

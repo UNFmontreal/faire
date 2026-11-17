@@ -12,6 +12,7 @@ dependencies = [
   "click>=8.1",
   "datalad>=1.1",
   "datalad-container>=1.2",
+  "git-annex",
   "copier>=9.3",
   "jsonschema>=4.21",
   "python-gitlab>=4.4",

@@ -59,8 +59,20 @@ A new pipeline version is a new dataset entry, so a study keeps one processing v
 Each dataset is rendered with copier from a git repository at a pinned tag or commit. Copier records its answers file in the dataset, which gives the required record of template, version and parameters and keeps the door open for `copier update` in the edge cases where template updates are wanted.
 *Alternative:* cookiecutter (no update path, no answers file by default); cloning a template repository and keeping shared history (merges across unrelated datasets become confusing).
 
-### D6. Containers come with the template
-The template declares its containers; rendering registers them with datalad-container, pinned by digest, as subdatasets of container repositories. Bootstrap verifies with `datalad containers-list`.
+### D6. Containers: shared collections as subdatasets, frozen into the dataset
+Images are not built or copied per dataset. They come from container collections, DataLad datasets configured with datalad-container whose images are annexed files (the lab's own collection, ReproNim containers, and so on). Each tool in a collection is developed and versioned independently, so a collection evolves on its own.
+
+The template declares (a) the collections it needs, each with a source, a subdataset path and a pinned revision, and (b) the containers its rules use, each by name, with the collection it comes from, the image version and optionally a call format. A template may use several collections, so there is no default path.
+
+Rendering installs each collection as a subdataset at its pinned revision, then *freezes* each declared container: the container's entry is copied from the collection's datalad-container configuration into the dataset's own `.datalad/config`, with the image path rewritten under the subdataset and pointing to the one declared image version. The freeze is saved as a recorded step, so history shows it. `datalad containers-run -n <name>` then works in the dataset against the frozen entry, and the collection can move on without changing results here. A dataset's container pin is therefore the pair (subdataset revision, frozen image path).
+
+Freezing is a tool operation described by its outcome. It does not depend on a collection shipping a particular script (ReproNim's `freeze_versions` produces the same kind of result). How a version maps to an image file is a convention of each collection; the template states the version and the tool looks it up in the collection's configuration.
+
+The frozen entry's call format MAY differ from the collection's. The study overrides how a tool is invoked without touching the collection. Example: the collection ships a generic heudiconv heuristic and its call format; the study's frozen entry calls a study heuristic file in the dataset that imports the shared heuristic from the collection subdataset and overrides only what differs (say, how task names are extracted). The shared heuristic is tracked by the collection, outside the image, so it develops independently. The study's file is part of the dataset's own history. The call format must make every file it relies on reachable inside the container (bind paths), and those files are declared as inputs of the run so they are retrieved and recorded.
+
+Bootstrap verifies, for each declared container, that its name appears in `datalad containers-list` of the dataset and that its image file is present in the collection at the pinned revision.
+*Alternative:* per-container registry URLs pinned by digest, as first implemented. Rejected: collections already version images, share them across studies and keep them as annexed files, and copying definitions per dataset would lose the per-study call-format override.
+*Alternative:* relying on the collection's own `freeze_versions` script. Rejected: it ties the spec to one collection layout; the requirement is the outcome.
 
 ### D7. Two independent structures
 The provenance graph is realised by `sourcedata/<source-id>` subdatasets inside each derived dataset. The study superdataset registers all datasets flat or nested according to a study template (BIDS-study-like layouts fit here) and holds the ma-DMP. A dataset therefore appears both under the study superdataset and under each consumer's `sourcedata/`; all point at the same platform repository.
@@ -138,7 +150,7 @@ Mapping of the paper's requirements to this change:
 | M.1, M.2 | One dataset per ma-DMP dataset, linked as subdatasets |
 | M.3 | License declared per dataset; compatibility is reported at release for human review, not checked automatically |
 | M.4 | Partial by choice: source data is in separate per-instrument modules that stay at their site, but sensitive files inside a standardized dataset are separated by file-level filters and a sensitive-only remote, not by a separate module |
-| P.1 to P.3 | Registered, digest-pinned containers; host specifics confined to site configuration |
+| P.1 to P.3 | Containers from shared collections, pinned by collection revision and frozen image path; host specifics confined to site configuration |
 | E.1 | `faire run` works in a throwaway clone on a runner |
 | D.1 | Release check on every referenced component: in the release, declared restricted, or externally managed and answering at its pinned revision |
 | D.2 | Not addressed: reproducible builds of container images belong to the container collections |

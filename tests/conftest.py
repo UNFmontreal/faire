@@ -1,5 +1,7 @@
 import copy
 import json
+import os
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -7,6 +9,17 @@ import yaml
 
 from faire import model, sites
 from faire.bootstrap import Workspace
+
+
+def pytest_configure(config):
+    """Tests get their own global git configuration: a default identity (CI runners have none)
+    and nothing from the developer's. Repository configuration, such as the automation identity,
+    still takes precedence."""
+    path = Path(tempfile.mkdtemp(prefix="faire-gitconfig-")) / "gitconfig"
+    path.write_text("[user]\n\tname = Test User\n\temail = test@example.org\n")
+    os.environ["GIT_CONFIG_GLOBAL"] = str(path)
+    os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+
 
 ROOT = Path(__file__).parent.parent
 DATA = Path(__file__).parent / "data"

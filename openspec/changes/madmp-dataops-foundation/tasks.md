@@ -21,6 +21,13 @@
 - [x] 3.3 Create a reference study template defining the study superdataset layout, the ma-DMP location and the site configuration location, and verify rendering yields a valid DataLad dataset
 - [x] 3.4 Add to the dataset template the single entry pipeline definition (plan, render, child pipeline) and the single-job fallback, and verify both pass the platform's pipeline linter and contain no pipeline logic
 
+- [ ] 3.5 Rework the container declaration (`.faire/containers.yaml`) to declare collections (source, subdataset path, pinned revision) and containers (name, collection, image version, optional call format); drop the digest-pinning check for registry URLs, and verify a declaration with two collections loads and one naming an unknown collection is rejected
+- [ ] 3.6 Install each declared collection as a subdataset at its pinned revision at bootstrap, and verify the subdataset path and revision in a created dataset
+- [ ] 3.7 Freeze each declared container into the dataset's own container configuration through the DataLad API (entry read from the collection, image path rewritten under the subdataset, call format overridden when declared), saved as a recorded step, and verify `containers-list` shows it and that updating the collection leaves the frozen image unchanged
+- [ ] 3.8 Fail bootstrap naming the container and the collection when a declared image version is absent from the collection at its pinned revision, and verify
+- [ ] 3.9 Verify a call format override that runs a dataset-local file importing a file from the collection subdataset runs through `datalad containers-run`, with the files it relies on declared as inputs, and re-executes with `datalad rerun` in a fresh clone
+- [ ] 3.10 Update the reference dataset template (`containers.yaml.jinja`, `copier.yml`) and the existing container tests to the collection model, using a small local collection fixture in place of the busybox image
+
 ## 4. Bootstrap and reconcile (local)
 
 - [x] 4.1 Implement computing the creation plan from a ma-DMP and a site in provenance order, including one instance per declared instrument named `<site>_<instrument>`, and verify the order, instance names and `sourcedata/<stream type>/<site>_<instrument>` paths on a fixture with one instrument feeding two streams

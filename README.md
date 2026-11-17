@@ -15,3 +15,5 @@ It also builds on:
 - [RDA DMP standard](https://rda-dmp-common.github.io/RDA-DMP-Common-Standard/) for the schema of machine-actionable data management plans, that we extend for real data actionability.
 
 See `openspec/changes/madmp-dataops-foundation/` for the specification.
+
+![](image.png)

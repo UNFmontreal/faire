@@ -200,8 +200,19 @@ class Bootstrap:
         self.repositories[key] = repo
         if "origin" not in ds.repo.get_remotes():
             ds.siblings("add", name="origin", url=repo.url, result_renderer="disabled")
-        ds.push(to="origin", data="nothing", result_renderer="disabled")
-        branches = [b for b in ds.repo.get_branches() if b != ds.repo.get_active_branch()]
+        # git-annex may write to the remote while the push updates availability information,
+        # which makes the first attempt on the git-annex branch a non-fast-forward; the second
+        # attempt merges it
+        failed = ds.push(
+            to="origin", data="nothing", result_renderer="disabled", on_failure="ignore"
+        )
+        if any(r.get("status") not in ("ok", "notneeded") for r in failed):
+            ds.push(to="origin", data="nothing", result_renderer="disabled")
+        # the git-annex branch is synchronised by the push above, which merges what the
+        # remote holds; pushing it again as a plain branch is rejected once the remote moved
+        branches = [
+            b for b in ds.repo.get_branches() if b not in (ds.repo.get_active_branch(), "git-annex")
+        ]
         if branches:
             ds.repo.push(remote="origin", refspec=branches)
         return repo
