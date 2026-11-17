@@ -27,7 +27,7 @@ A rule SHALL be triggered either by a change in a triggering source of the datas
 - **THEN** the rule's results are committed to that same branch and appear in the same pull request
 
 ### Requirement: Samples identified by entities
-A sample SHALL be identified by values for the entity names declared in the ma-DMP. Input and output patterns of a rule SHALL be resolved by substituting the sample's entity values.
+A sample SHALL be identified by values for the entity names declared in the ma-DMP. Input patterns of a rule SHALL be resolved by substituting the entity values of the sample that triggered the task. Output patterns SHALL be resolved by substituting those values, except for the entities the rule declares as captured, which are determined by what the task writes.
 
 #### Scenario: Pattern resolution
 - **WHEN** a rule declares an input pattern using the entities `subject` and `session` and is run for the sample `subject=01, session=003`
@@ -36,6 +36,25 @@ A sample SHALL be identified by values for the entity names declared in the ma-D
 #### Scenario: Missing entity
 - **WHEN** a task is requested for a sample that lacks a value for an entity the rule's patterns use
 - **THEN** it fails and names the missing entity
+
+### Requirement: Captured output entities
+A rule MAY declare entities in its output patterns as captured. After the command succeeds, the tool SHALL match the files the task wrote against the output patterns and record in the run record the trigger sample and every output sample, that is, every combination of captured values found. The files matched SHALL be the declared outputs of the task. Files written outside every output pattern SHALL be reported and not saved. Output samples are the samples under which downstream datasets are triggered. Identifier mappings the command needs SHALL NOT be committed in plain text to a dataset that is shared beyond the site; the command SHALL derive output values from the data or read such mappings from files kept in the sensitive part of the dataset.
+
+#### Scenario: One input sample, one output sample
+- **WHEN** a rule with captured entities `subject` and `session` runs for the trigger sample `subject=PAT42, session=0301` and writes files under `sub-01/ses-01/`
+- **THEN** the run record names the trigger sample and the output sample `subject=01, session=01`
+
+#### Scenario: One input sample, several output samples
+- **WHEN** a task writes files under both `sub-01/ses-01/` and `sub-01/ses-02/`
+- **THEN** the run record lists both output samples and all their files are saved
+
+#### Scenario: Nothing matches
+- **WHEN** a task succeeds but no written file matches the output patterns
+- **THEN** the task fails, names the rule, and nothing is saved
+
+#### Scenario: Two trigger samples, one output sample
+- **WHEN** two trigger samples both produce files under `sub-01/ses-01/`
+- **THEN** each task's run record lists that output sample, and the files they both write follow the dataset's merge rules for shared files
 
 ### Requirement: Planning from the dataset's state
 The tool SHALL provide a command that determines, for a branch of a dataset, the tasks that are due, each task being one rule applied to one sample, and outputs them as a machine-readable list giving for each task its identifier, rule, sample, site and position in the order. A task SHALL be due when the inputs recorded by the rule's last run for that sample differ from their current state, or when the rule has never run for that sample. Planning SHALL depend only on the state of the dataset and its sources, not on which event started it, and SHALL NOT change the dataset.
@@ -187,8 +206,12 @@ Any result accepted on `dev` or contained in a release SHALL be re-executable fr
 - **THEN** the revision of each source, the container version and the processing rule version used are all identifiable
 
 ### Requirement: Re-running a sample
-Running a source-triggered rule again for a sample that already has results in the dataset SHALL replace that sample's previous outputs in a new pull request and SHALL NOT alter other samples' outputs.
+Running a source-triggered rule again for a sample that already has results in the dataset SHALL replace the outputs recorded by that sample's previous run in a new pull request and SHALL NOT alter outputs recorded by runs for other samples.
 
 #### Scenario: Rerun after correction
 - **WHEN** a task is run for a sample whose results are already on `dev`
-- **THEN** a new pull request replaces that sample's outputs and leaves all other files unchanged
+- **THEN** a new pull request replaces the outputs recorded by the previous run for that sample and leaves all other files unchanged
+
+#### Scenario: Rerun with converging samples
+- **WHEN** two trigger samples have written files into one output sample and one of them is run again
+- **THEN** only the files its previous run recorded are replaced, and the files recorded by the other sample's run are unchanged

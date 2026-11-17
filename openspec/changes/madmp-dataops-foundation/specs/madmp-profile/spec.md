@@ -133,7 +133,11 @@ The extension SHALL mark each source of a dataset as either triggering or resour
 - **THEN** validation fails and names the dataset
 
 ### Requirement: Sample entities
-The ma-DMP SHALL declare, once for the study, the ordered list of entity names that identify a sample. All datasets of the study SHALL use these names.
+The ma-DMP SHALL declare, once for the study, the ordered list of entity names that identify a sample. All datasets of the study SHALL use these names. The names are shared but the values are scoped to a dataset: the values identifying a sample in a source dataset MAY differ from the values identifying the results derived from it, a processing rule being the place where one maps to the other.
+
+#### Scenario: Values differ across a derivation
+- **WHEN** a source dataset identifies a sample as `subject=PAT42, session=0301` and the derived dataset holds its results as `subject=01, session=01`
+- **THEN** validation succeeds, both using the declared entity names
 
 #### Scenario: Entities declared
 - **WHEN** the ma-DMP declares the sample entities `subject` and `session`

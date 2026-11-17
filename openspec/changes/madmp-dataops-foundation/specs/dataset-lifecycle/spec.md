@@ -89,7 +89,11 @@ Every computation that produces or changes dataset content SHALL be executed thr
 - **THEN** the commit that adds them carries a run record from which the computation can be re-executed
 
 ### Requirement: Per-sample cascade to direct downstream datasets
-When a sample's pull request is merged into `dev` of a dataset, or a sample is indexed into a source dataset, each dataset for which it is a triggering source SHALL be triggered for that sample. The triggered dataset SHALL run its processing rule for that sample, as specified by the processing-rules capability, resulting in a pull request against its own `dev` whose `sourcedata/` reference is the merged state. Datasets further downstream SHALL be triggered only when that pull request is merged in turn.
+When a sample's pull request is merged into `dev` of a dataset, or a sample is indexed into a source dataset, each dataset for which it is a triggering source SHALL be triggered for that sample. The triggered dataset SHALL run its processing rule for that sample, as specified by the processing-rules capability, resulting in a pull request against its own `dev` whose `sourcedata/` reference is the merged state. Datasets further downstream SHALL be triggered only when that pull request is merged in turn. When the merged pull request's run records name output samples that differ from the sample that triggered it, the triggered datasets SHALL be triggered for each recorded output sample, not for the trigger sample.
+
+#### Scenario: Output samples differ from the trigger sample
+- **WHEN** the pull request for trigger sample `subject=PAT42, session=0301` is merged in `raw` and its run record names the output sample `subject=01, session=01`
+- **THEN** `standardized` is triggered for `subject=01, session=01` and not for `PAT42`
 
 #### Scenario: One level
 - **WHEN** the pull request for sample `S` is merged in dataset `raw`, and `standardized` is derived from `raw`

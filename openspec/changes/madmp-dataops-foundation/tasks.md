@@ -71,6 +71,10 @@
 - [x] 6.12 Implement rerun for a sample already on `dev` and verify only that sample's outputs change
 - [x] 6.13 Implement site assignment of tasks in the plan and verify on a two-site fixture that the other site's runner is not used
 - [x] 6.14 Verify an accepted result can be re-executed with `datalad rerun` in a fresh clone and that the record identifies the source revisions, container version and rule version
+- [ ] 6.15 Add captured entities to the rule model, and verify a rule declaring `subject` and `session` as captured resolves its inputs from the trigger sample and its outputs from the files written
+- [ ] 6.16 Record trigger sample and output samples in the run record, and verify one-to-one, one-to-many and no-match cases (no match fails and saves nothing)
+- [ ] 6.17 Report files written outside every output pattern and do not save them, and verify
+- [ ] 6.18 Make rerun replace the outputs recorded by the previous run of the trigger sample, and verify on two trigger samples converging on one output sample that only the rerun sample's recorded files are replaced
 
 ## 7. Data indexing
 
@@ -89,6 +93,7 @@
 ## 8. Dataset lifecycle
 
 - [ ] 8.1 Implement the sample branch convention and pull request creation on push for manual contributions, and verify the pull request identifies the sample and that a derived dataset's pull request targets `pilot` for a pilot sample
+- [ ] 8.1a Trigger downstream datasets for the output samples named in the merged pull request's run records, and verify on a chain where output samples differ from the trigger sample that downstream is triggered for the output sample only
 - [ ] 8.2 Wire merge events to downstream `run` for triggering sources only, and verify on a three-dataset chain that the cascade advances one level per merge and a resource change triggers nothing
 - [ ] 8.3 Verify a second trigger for the same sample updates the open pull request, using a two-source dataset
 - [ ] 8.4 Verify the advisory protocol check warns without blocking, and that merging a deviating sample produces no downstream pull request and no failure
