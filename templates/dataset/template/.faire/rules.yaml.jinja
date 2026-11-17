@@ -5,7 +5,7 @@ rules:
     trigger:
       source: "{{ source_dataset }}"      # source-triggered: results arrive as a pull request
     container: tool
-    command: "sh -c 'cat {inputs} > {outputs}'"
+    command: "sh -c 'mkdir -p {subject}/{session} && cat {inputs} > {outputs}'"
     inputs:
       - pattern: "sourcedata/{{ source_dataset }}/{subject}/{session}/*.txt"
         required: true

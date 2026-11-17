@@ -7,6 +7,7 @@ and repository creation later; the steps are the same.
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 from dataclasses import dataclass, field
@@ -19,11 +20,22 @@ from datalad.api import Dataset, clone, create
 from faire import containers, plan, sites, study, templates
 from faire.model import Dmp
 from faire.plan import Item
+from faire.platform import Platform, Repository
 
 RECORD = ".faire/dataset.yaml"
 BRANCHES = ("dev", "pilot", "main")
 EARLY_STAGES = ("collection", "review", "accepted")
 MAIN = "main"
+PROTECTED_BRANCHES = ("dev", "pilot", "main")
+SAMPLE_BRANCHES = "feature/*"  # branches the tool opens for samples; may read task secrets
+REQUIRED_OPERATIONS = (
+    "ensure_group",
+    "ensure_repository",
+    "protect_branch",
+    "protect_tag",
+    "set_variable",
+)
+STUDY_REPO = "study"
 
 
 class BootstrapError(RuntimeError):
@@ -57,6 +69,9 @@ class Result:
     actions: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
     differences: list[str] = field(default_factory=list)  # non-additive, reported not applied
+    notes: list[str] = field(default_factory=list)
+    #: secret name -> repositories that need it and cannot see it yet
+    missing_secrets: dict[str, list[str]] = field(default_factory=dict)
 
     def __bool__(self) -> bool:
         return bool(self.actions)
@@ -103,7 +118,14 @@ class Bootstrap:
         study_template: str,
         sites_dir: str | Path | None = None,
         dry_run: bool = False,
+        platform: Platform | None = None,
+        group: str | None = None,
+        faire_image: str | None = None,
     ):
+        self.platform = platform
+        self.group = group or slug(dmp.title) or "study"
+        self.faire_image = faire_image
+        self.repositories: dict[str, Repository] = {}
         self.dmp = dmp
         self.site = site_config
         self.ws = workspace
@@ -129,6 +151,10 @@ class Bootstrap:
 
     def run(self) -> Result:
         sites.check_site(self.dmp, self.site)
+        if self.platform is not None:
+            self.platform.require(REQUIRED_OPERATIONS)  # before any change is made
+            if not self.dry:
+                self.platform.ensure_group(self.group)
         for item in self.items.values():
             if not item.create:
                 self.result.skipped.append(
@@ -138,13 +164,143 @@ class Bootstrap:
             if self.ws.repo_path(item).exists():
                 if not self.reconcile_existing(item):
                     continue
+                self.publish_if_missing(item)
             else:
                 self.create_dataset(item)
                 self.install_sources(item)
+                self.publish_new(item)
             self.configure_remotes(item)
+            self.configure_platform(item)
         self.report_unplanned()
         self.create_study()
+        self.report_missing_secrets()
         return self.result
+
+    # -- platform ------------------------------------------------------------------------------
+
+    def url(self, item: Item) -> str:
+        if self.platform is None:
+            return self.ws.url(item)
+        repo = self.repositories.get(item.key) or self.platform.get_repository(
+            self.group, item.repo_name
+        )
+        if repo is None:
+            raise BootstrapError(f"{item.key}: no repository on the platform yet")
+        return repo.url
+
+    def _publish(self, ds: Dataset, name: str, key: str) -> Repository:
+        assert self.platform is not None
+        repo = self.platform.ensure_repository(self.group, name)
+        self.repositories[key] = repo
+        if "origin" not in ds.repo.get_remotes():
+            ds.siblings("add", name="origin", url=repo.url, result_renderer="disabled")
+        ds.push(to="origin", data="nothing", result_renderer="disabled")
+        branches = [b for b in ds.repo.get_branches() if b != ds.repo.get_active_branch()]
+        if branches:
+            ds.repo.push(remote="origin", refspec=branches)
+        return repo
+
+    def publish_new(self, item: Item) -> None:
+        if self.platform is None:
+            return
+        self.do(
+            f"publish {item.key} as {self.group}/{item.repo_name}",
+            lambda: self._publish_and_protect(item),
+        )
+
+    def _publish_and_protect(self, item: Item) -> None:
+        repo = self._publish(Dataset(self.ws.repo_path(item)), item.repo_name, item.key)
+        self.protect(repo)
+
+    def publish_if_missing(self, item: Item) -> None:
+        """A dataset created in local-only mode and later bootstrapped with a platform."""
+        if self.platform is None or self.platform.get_repository(self.group, item.repo_name):
+            return
+        self.publish_new(item)
+
+    def protect(self, repo: Repository) -> None:
+        """Merge-only branches, approvals, protected release tags, sample branches (D32)."""
+        assert self.platform is not None
+        for pattern in PROTECTED_BRANCHES:
+            result = self.platform.protect_branch(repo, pattern, approvals=1)
+            for note in result.notes:
+                if note not in self.result.notes:
+                    self.result.notes.append(note)
+        self.platform.protect_branch(repo, SAMPLE_BRANCHES, approvals=0)
+        self.platform.protect_tag(repo, "*")
+
+    def variables_for(self, item: Item) -> dict[str, str]:
+        """CI variables derived from the ma-DMP: sources, downstream datasets, secret names."""
+        downstream = sorted(
+            {
+                other.repo_name
+                for other in self.items.values()
+                if any(link.key == item.key for link in other.sources)
+            }
+        )
+        variables = {
+            "FAIRE_DATASET": item.dataset_id,
+            "FAIRE_SOURCES": ",".join(sorted({self.items[s.key].repo_name for s in item.sources})),
+            "FAIRE_DOWNSTREAM": ",".join(f"{self.group}/{name}" for name in downstream),
+            "FAIRE_SECRETS": ",".join(sorted(self.secrets_for(item))),
+        }
+        if self.faire_image:
+            variables["FAIRE_IMAGE"] = self.faire_image
+        tags = self.runner_tags()
+        if tags:
+            variables["FAIRE_RUNNER_TAGS"] = json.dumps(tags, sort_keys=True)
+        return variables
+
+    def runner_tags(self) -> dict[str, list[str]]:
+        """Runner tags of every site, from the site configurations of the study."""
+        configs = {self.site.site: self.site}
+        if self.sites_dir and self.sites_dir.is_dir():
+            for path in sorted(self.sites_dir.glob("*.yaml")):
+                config = sites.load(path)
+                configs.setdefault(config.site, config)
+        return {site: list(c.runner_tags) for site, c in configs.items() if c.runner_tags}
+
+    def secrets_for(self, item: Item) -> set[str]:
+        names: set[str] = set()
+        for dist in self.dmp.dataset(item.dataset_id).distributions:
+            host = dist.host
+            if host is None:
+                continue
+            names |= set(host.secrets.values())
+            if host.site_dependent and host.key in self.site.hosts:
+                names |= set(self.site.mapping(host.key).secrets.values())
+        return names
+
+    def configure_platform(self, item: Item) -> None:
+        if self.platform is None:
+            return
+        repo = self.repositories.get(item.key) or self.platform.get_repository(
+            self.group, item.repo_name
+        )
+        if repo is None:
+            return  # dry run, not published yet
+        current = self.platform.get_variables(repo)
+        for key, value in self.variables_for(item).items():
+            if current.get(key) != value:
+                self.do(
+                    f"set CI variable {key} on {repo.path}",
+                    lambda key=key, value=value, repo=repo: self.platform.set_variable(
+                        repo, key, value
+                    ),
+                )
+
+    def report_missing_secrets(self) -> None:
+        if self.platform is None:
+            return
+        for item in self.items.values():
+            repo = self.repositories.get(item.key) or self.platform.get_repository(
+                self.group, item.repo_name
+            )
+            if not item.create or repo is None:
+                continue
+            defined = self.platform.defined_variables(repo)
+            for name in sorted(self.secrets_for(item) - defined):
+                self.result.missing_secrets.setdefault(name, []).append(repo.path)
 
     # -- reconcile existing datasets ---------------------------------------------------------
 
@@ -280,7 +436,7 @@ class Bootstrap:
     def _install(self, path: Path, subpath: str, source: Item) -> None:
         ds = Dataset(path)
         clone(
-            source=self.ws.url(source),
+            source=self.url(source),
             path=str(path / subpath),
             dataset=ds,
             result_renderer="disabled",
@@ -361,6 +517,19 @@ class Bootstrap:
                 f"register {item.key} in the study superdataset at {where}",
                 lambda item=item, where=where: self._register(item, where),
             )
+        if self.platform is not None and path.exists() and not self.dry:
+            self._publish_study()
+        elif self.platform is not None and not path.exists():
+            self.result.actions.append(f"publish study as {self.group}/{STUDY_REPO}")
+
+    def _publish_study(self) -> None:
+        assert self.platform is not None
+        study_ds = Dataset(self.ws.study)
+        existed = self.platform.get_repository(self.group, STUDY_REPO) is not None
+        repo = self._publish(study_ds, STUDY_REPO, STUDY_REPO)
+        if not existed:
+            self.result.actions.append(f"publish study as {repo.path}")
+            self.protect(repo)
 
     def _study_path(self, item: Item, layout: study.StudyLayout | None) -> str | None:
         layout = layout or study.StudyLayout("", "madmp.json", "sites")
@@ -385,7 +554,7 @@ class Bootstrap:
 
     def _register(self, item: Item, where: str) -> None:
         clone(
-            source=self.ws.url(item),
+            source=self.url(item),
             path=str(self.ws.study / where),
             dataset=Dataset(self.ws.study),
             result_renderer="disabled",
@@ -400,7 +569,19 @@ def init(
     study_template: str,
     sites_dir: str | Path | None = None,
     dry_run: bool = False,
+    platform: Platform | None = None,
+    group: str | None = None,
+    faire_image: str | None = None,
 ) -> Result:
     return Bootstrap(
-        dmp, site_config, workspace, madmp_path, study_template, sites_dir, dry_run
+        dmp,
+        site_config,
+        workspace,
+        madmp_path,
+        study_template,
+        sites_dir,
+        dry_run,
+        platform,
+        group,
+        faire_image,
     ).run()
