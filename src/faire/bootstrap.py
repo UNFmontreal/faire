@@ -150,6 +150,12 @@ class Bootstrap:
     # -- datasets ----------------------------------------------------------------------------
 
     def run(self) -> Result:
+        if self.platform is None:
+            return self._run()
+        with self.platform.git_auth():
+            return self._run()
+
+    def _run(self) -> Result:
         sites.check_site(self.dmp, self.site)
         if self.platform is not None:
             self.platform.require(REQUIRED_OPERATIONS)  # before any change is made

@@ -6,7 +6,7 @@ import pytest
 from datalad.api import Dataset
 
 from faire import execute, planning, rules
-from rulefix import RULES, add_samples, make_derived, write_source
+from rulefix import RULES, add_samples, enable_directory_remote, make_derived, write_source
 
 
 @pytest.fixture
@@ -69,7 +69,7 @@ def test_content_of_other_samples_is_not_retrieved(tmp_path):
 
     ds = make_derived(tmp_path, FromHub())
     sub = Dataset(Path(ds.path) / "sourcedata/src")
-    sub.repo.enable_remote("store", options=[f"directory={store}"])
+    enable_directory_remote(sub, "store", store)
     root = Path(sub.path)
     assert not (root / "01/a.txt").exists() and not (root / "02/a.txt").exists()
     run(ds, "process:subject=01")

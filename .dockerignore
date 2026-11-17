@@ -1,0 +1,12 @@
+.git
+.venv
+.devcontainer
+.claude
+.agents
+.github
+openspec
+tests
+examples
+**/__pycache__
+.pytest_cache
+.ruff_cache

@@ -15,6 +15,7 @@ from faire.platform import (
     Protection,
     PullRequest,
     Repository,
+    credentials,
 )
 
 MAINTAINER = 40  # GitLab access level: Maintainer
@@ -25,7 +26,11 @@ class GitLabPlatform(Platform):
     name = "gitlab"
 
     def __init__(self, url: str, token: str, session: Any = None):
+        self.url, self._token = url, token
         self.gl = gitlab.Gitlab(url, private_token=token, session=session)
+
+    def git_auth(self):
+        return credentials.git_auth(self.url, self._token)
 
     def _wrap(self, exc: Exception) -> PlatformError:
         return PlatformError(f"GitLab: {exc}")

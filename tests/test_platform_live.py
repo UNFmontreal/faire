@@ -60,16 +60,16 @@ def platform():
 
 class TestGitLabLive(PlatformConformance):
     def seed(self, platform, repo, *branches):
-        """Push one commit to each branch, with the token in a throwaway URL (never stored)."""
+        """Push one commit to each branch through the platform's git credential helper."""
         from datalad.api import create
 
         work = create(str(self.tmp / repo.name), result_renderer="disabled")
         (self.tmp / repo.name / "f.txt").write_text("x\n")
         (self.tmp / repo.name / ".gitlab-ci.yml").write_text('noop:\n  script: ["true"]\n')
         work.save(message="seed", result_renderer="disabled")
-        url = repo.url.replace("https://", f"https://oauth2:{TOKEN}@")
-        for branch in branches:
-            work.repo.call_git(["push", url, f"HEAD:refs/heads/{branch}"])
+        with platform.git_auth():
+            for branch in branches:
+                work.repo.call_git(["push", repo.url, f"HEAD:refs/heads/{branch}"])
 
     @pytest.fixture(autouse=True)
     def _tmp(self, tmp_path):

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+import subprocess
 from pathlib import Path
 
 import yaml
@@ -73,3 +75,26 @@ def make_derived(
     ds.save(message="rules", result_renderer="disabled")
     ds.repo.call_git(["branch", "-M", "dev"])
     return ds
+
+
+def enable_directory_remote(ds: Dataset, name: str, directory: Path) -> None:
+    """Enable a directory special remote in a clone.
+
+    Recent git-annex asks for `verifyremote --safe N` before it uses a remote whose
+    configuration came from the git-annex branch; older versions do not ask.
+    """
+    out = subprocess.run(
+        ["git", "annex", "enableremote", name, f"directory={directory}"],
+        cwd=ds.path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    found = re.search(rf"verifyremote {re.escape(name)} --safe (\d+)", out.stdout + out.stderr)
+    if found:
+        subprocess.run(
+            ["git", "annex", "verifyremote", name, "--safe", found.group(1)],
+            cwd=ds.path,
+            check=True,
+            capture_output=True,
+        )

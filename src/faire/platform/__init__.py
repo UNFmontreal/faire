@@ -7,6 +7,7 @@ operations only, so supporting another platform means implementing this class.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 
 OPERATIONS = (
@@ -72,6 +73,10 @@ class Platform(ABC):
     name = "platform"
     #: operations this platform implements; commands check them before changing anything
     supported: frozenset[str] = frozenset(OPERATIONS)
+
+    def git_auth(self) -> AbstractContextManager[None]:
+        """Within the block, git authenticates to this platform; git's own credentials otherwise."""
+        return nullcontext()
 
     def require(self, operations: list[str] | tuple[str, ...]) -> None:
         missing = [op for op in operations if op not in self.supported]

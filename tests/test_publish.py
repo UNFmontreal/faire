@@ -5,7 +5,7 @@ from datalad.api import clone
 
 from faire import execute, publish, rules
 from faire.platform.fake import FakePlatform
-from rulefix import make_derived, write_source
+from rulefix import enable_directory_remote, make_derived, write_source
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ def test_fresh_clone_of_the_branch_retrieves_every_output(setup, tmp_path):
     assert "review-store" in result.pushed_to and "origin" in result.pushed_to
     fresh = clone(repo.url, tmp_path / "fresh", result_renderer="disabled")
     fresh.repo.call_git(["checkout", out.branch])
-    fresh.repo.enable_remote("review-store", options=[f"directory={tmp_path / 'review-storage'}"])
+    enable_directory_remote(fresh, "review-store", tmp_path / "review-storage")
     fresh.get("01/processed.txt", result_renderer="disabled")
     assert (Path(fresh.path) / "01/processed.txt").read_text() == "one\n"
 

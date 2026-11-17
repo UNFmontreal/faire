@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 
 import click
@@ -21,7 +22,7 @@ from faire import (
 )
 from faire import trigger as triggering
 from faire import validate as validation
-from faire.platform import PlatformError, factory
+from faire.platform import PlatformError, credentials, factory
 from faire.render import gitlab as gitlab_renderer
 
 
@@ -62,8 +63,29 @@ def validate(madmp: str) -> None:
 @click.option("--root", type=click.Path(file_okay=False), required=True, help="Workspace directory")
 @click.option("--study-template", required=True, help="Template of the study superdataset")
 @click.option("--dry-run", is_flag=True, help="Report what would change and change nothing")
-def init(madmp, site, sites_dir, root, study_template, dry_run):
-    """Create or reconcile the study's datasets from the ma-DMP (local-only mode)."""
+@click.option("--platform", "platform_name", type=click.Choice(["gitlab"]), default=None)
+@click.option("--platform-url", envvar="FAIRE_PLATFORM_URL", default=None)
+@click.option("--group", default=None, help="Platform group holding the study's repositories")
+@click.option("--faire-image", default=None, help="Container image CI jobs run faire in")
+def init(
+    madmp,
+    site,
+    sites_dir,
+    root,
+    study_template,
+    dry_run,
+    platform_name,
+    platform_url,
+    group,
+    faire_image,
+):
+    """Create or reconcile the study's datasets from the ma-DMP.
+
+    Local-only unless --platform is given; the platform token is read from FAIRE_PLATFORM_TOKEN.
+    """
+    if platform_name and not (platform_url and group):
+        click.echo("--platform needs --platform-url and --group", err=True)
+        sys.exit(1)
     with open(madmp) as handle:
         document = json.load(handle)
     violations = validation.validate(document)
@@ -74,6 +96,7 @@ def init(madmp, site, sites_dir, root, study_template, dry_run):
         sys.exit(1)
     try:
         config = sites.load(f"{sites_dir}/{site}.yaml")
+        platform = factory.connect(platform_name, platform_url) if platform_name else None
         result = bootstrap.init(
             model.Dmp(document),
             config,
@@ -82,8 +105,11 @@ def init(madmp, site, sites_dir, root, study_template, dry_run):
             study_template,
             sites_dir=sites_dir,
             dry_run=dry_run,
+            platform=platform,
+            group=group,
+            faire_image=faire_image,
         )
-    except (sites.SiteConfigError, bootstrap.BootstrapError, OSError) as exc:
+    except (sites.SiteConfigError, bootstrap.BootstrapError, PlatformError, OSError) as exc:
         click.echo(str(exc), err=True)
         sys.exit(1)
     prefix = "would: " if dry_run else ""
@@ -93,6 +119,10 @@ def init(madmp, site, sites_dir, root, study_template, dry_run):
         click.echo(f"skipped: {note}")
     if not result.actions:
         click.echo("no change")
+    for note in result.notes:
+        click.echo(f"note: {note}")
+    for name, repos in sorted(result.missing_secrets.items()):
+        click.echo(f"missing secret {name}: " + ", ".join(sorted(repos)))
     for difference in result.differences:
         click.echo(f"not applied: {difference}", err=True)
     if result.differences:
@@ -271,7 +301,8 @@ def _deliver(ds, ruleset, done, base, pull_request, platform_name, platform_url,
     for branch, items in by_branch.items():
         if ds.repo.get_active_branch() != branch:
             ds.repo.call_git(["checkout", branch])
-        result = publish.push_results(ds, branch)
+        with credentials.git_auth(platform_url, os.environ.get(factory.TOKEN_ENV)):
+            result = publish.push_results(ds, branch)
         for note in result.notes:
             click.echo(note)
         if pull_request and platform_url and project:
