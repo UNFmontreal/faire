@@ -1,6 +1,6 @@
 # FAIRe
 
-Juste FAIRe le! (c)
+"Juste FAIRe le!" © 
 
 Building on [FAIR principles](https://www.gofair.foundation/fair-principles) of research data management:
 - F for findable: datasets metadata and structure are exposed, searchable, lightly duplicated for resilience.
@@ -16,4 +16,6 @@ It also builds on:
 
 See `openspec/changes/madmp-dataops-foundation/` for the specification.
 
-![](image.png)
+Mais qu'est ce que ça peut faire?
+Ça peut tout faire! 
+C'est la [barre de faire](docs/assets/barre_de_faire.png) tout!
