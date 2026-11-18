@@ -16,6 +16,8 @@ It also builds on:
 
 See `openspec/changes/madmp-dataops-foundation/` for the specification.
 
-Mais qu'est ce que ça peut faire?
-Ça peut tout faire! 
-C'est la [barre de faire](docs/assets/barre_de_faire.png) tout!
+## references
+
+### nostalgia (ref for the French who were old enough in late nineties)
+|La barre de faire quoi? 
+|La [barre de faire](docs/assets/barre_de_faire.png) tout!

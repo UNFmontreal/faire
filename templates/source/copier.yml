@@ -1,0 +1,29 @@
+# Reference source dataset template (minimal, domain-agnostic): the dataset of one instrument of
+# a stream. It carries the heuristic that `faire index` applies to files received from the
+# instrument.
+_subdirectory: template
+_templates_suffix: .jinja
+
+dataset_id:
+  type: str
+  help: Identifier of the dataset (the stream) in the ma-DMP
+
+dataset_title:
+  type: str
+  help: Title of the dataset
+  default: ""
+
+license:
+  type: str
+  help: Resolvable license reference of the dataset
+  default: ""
+
+license_spdx:
+  type: str
+  help: SPDX identifier of the license, when it has one
+  default: ""
+
+derived_from:
+  type: yaml
+  help: Unused by a source dataset; accepted so every template takes the same data
+  default: []

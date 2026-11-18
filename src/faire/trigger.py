@@ -14,6 +14,7 @@ def trigger_downstream(
     revision: str,
     sample: str | None = None,
     ref: str = DEFAULT_REF,
+    extra: dict[str, str] | None = None,
 ) -> list[str]:
     """Start a pipeline in each downstream repository (`group/name`); return pipeline ids.
 
@@ -22,7 +23,7 @@ def trigger_downstream(
     starting that pipeline again by any means.
     """
     platform.require(["trigger_pipeline"])
-    variables = {"FAIRE_UPSTREAM": upstream, "FAIRE_REVISION": revision}
+    variables = {"FAIRE_UPSTREAM": upstream, "FAIRE_REVISION": revision, **(extra or {})}
     if sample:
         variables["FAIRE_SAMPLE"] = sample
     ids = []

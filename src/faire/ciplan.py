@@ -5,7 +5,10 @@
             "site": "a", "order": 0, "branch": "feature/subject-01",
             "artifacts": [".faire/logs/"]}],
  "checks": [{"id": "layout", "blocking": true}],
- "downstream": ["study/analysis"]}
+ "downstream": ["study/analysis"], "samples": ["subject=01,session=01"]}
+
+`samples` are the output samples of the pull requests merged since the previous pipeline of a
+protected branch: the samples the downstream datasets are triggered for.
 """
 
 from __future__ import annotations
@@ -13,6 +16,8 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field
 from typing import Any
+
+PROTECTED = ("dev", "pilot", "main")  # branches that carry no pull request
 
 
 @dataclass(frozen=True)
@@ -39,6 +44,7 @@ class CiPlan:
     tasks: tuple[Task, ...] = ()
     checks: tuple[Check, ...] = ()
     downstream: tuple[str, ...] = field(default_factory=tuple)
+    samples: tuple[str, ...] = field(default_factory=tuple)
 
     @property
     def empty(self) -> bool:
@@ -67,4 +73,5 @@ class CiPlan:
             ),
             tuple(Check(c["id"], c.get("blocking", True)) for c in raw.get("checks") or []),
             tuple(raw.get("downstream") or ()),
+            tuple(raw.get("samples") or ()),
         )

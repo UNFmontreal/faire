@@ -78,3 +78,45 @@ def test_connect_requires_a_token(monkeypatch):
     monkeypatch.delenv(factory.TOKEN_ENV, raising=False)
     with pytest.raises(PlatformError, match=factory.TOKEN_ENV):
         factory.connect("gitlab", "https://x")
+
+
+class FlakyPlatform(FakePlatform):
+    """The first pipeline start is lost."""
+
+    def __init__(self, root):
+        super().__init__(root)
+        self.failures = 1
+
+    def trigger_pipeline(self, repo, ref, variables):
+        if self.failures:
+            self.failures -= 1
+            raise PlatformError("connection reset")
+        return super().trigger_pipeline(repo, ref, variables)
+
+
+def test_lost_trigger_is_recovered_because_planning_works_from_state(tmp_path):
+    from datalad.api import Dataset
+
+    from rulefix import add_samples, make_derived, write_source
+    from test_planning import current_digests, plan, record
+
+    src = write_source(tmp_path / "src", {"01/a.txt": "one\n", "02/a.txt": "two\n"})
+    ds = make_derived(tmp_path, src)
+    for task, digest in current_digests(ds).items():
+        record(ds, task, digest)
+    assert plan(ds).empty
+
+    add_samples(src, {"03/a.txt": "three\n"})  # the upstream accepts a new sample...
+    platform = FlakyPlatform(tmp_path / "hosting")
+    group = platform.ensure_group("g")
+    platform.ensure_repository(group.path, "derived")
+    with pytest.raises(PlatformError, match="connection reset"):  # ...and its trigger is lost
+        trigger.trigger_downstream(platform, ["g/derived"], "src", "abc", "03")
+    assert not platform.pipelines
+
+    # nothing was lost: whoever starts the downstream planning pipeline later gets the task
+    assert [t.id for t in plan(ds, update=True).tasks] == ["process:subject=03"]
+    # and starting it again by the portable trigger works
+    trigger.trigger_downstream(platform, ["g/derived"], "src", "abc", "03")
+    assert [p[0] for p in platform.pipelines] == ["g/derived"]
+    assert Dataset(ds.path).is_installed()

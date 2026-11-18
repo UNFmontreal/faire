@@ -22,11 +22,10 @@ from pathlib import Path
 from datalad.api import Dataset
 
 from faire import rules as rulemod
-from faire.ciplan import Check, CiPlan, Task
+from faire.ciplan import PROTECTED, Check, CiPlan, Task
 from faire.rules import Rule, RuleSet
 
 SOURCEDATA = "sourcedata"
-PROTECTED = ("dev", "pilot", "main")
 TRAILER_TASK = "faire-task"
 TRAILER_INPUTS = "faire-inputs"
 
@@ -68,6 +67,30 @@ def parse_task_id(text: str) -> tuple[str, dict[str, str]]:
 
 def branch_of(sample: dict[str, str]) -> str:
     return "feature/" + "_".join(f"{k}-{v}" for k, v in sample.items()) if sample else "feature/all"
+
+
+def sample_of_branch(branch: str, entities: list[str] | None = None) -> dict[str, str] | None:
+    """The sample a `feature/<entity>-<value>_...` branch is for; None for any other branch.
+
+    With the entity names known, values may contain `-` and `_`; without them the branch is
+    split on `_` and the first `-` of each part.
+    """
+    if not branch.startswith("feature/") or branch == "feature/all":
+        return None
+    text = branch.removeprefix("feature/")
+    if entities:
+        names = "|".join(re.escape(e) for e in entities)
+        parts = re.split(rf"(?:^|_)({names})-", text)
+        if len(parts) < 3 or parts[0]:
+            return None
+        return dict(zip(parts[1::2], parts[2::2], strict=True))
+    found = {}
+    for part in text.split("_"):
+        name, sep, value = part.partition("-")
+        if not sep or not name or not value:
+            return None
+        found[name] = value
+    return found
 
 
 def _entries(repo, prefix: str = "") -> dict[str, str]:
@@ -142,7 +165,7 @@ class Trees:
             if not subds.is_installed():
                 self.ds.get(rel, get_data=False, result_renderer="disabled")
             if self.update:
-                subds.update(sibling="origin", merge=True, result_renderer="disabled")
+                _bring_up_to_date(subds, self.ds.repo.get_active_branch())
             files.update(_entries(subds.repo, rel + "/"))
         if not found:
             raise PlanError(f"source {source_id!r} is not registered under {SOURCEDATA}/")
@@ -154,6 +177,24 @@ class Trees:
             if pattern.startswith(f"{SOURCEDATA}/{source_id}/"):
                 return self.source(source_id)
         return self.own()
+
+
+def _bring_up_to_date(source: Dataset, branch: str | None) -> None:
+    """Move a source to its latest revision.
+
+    A dataset on `dev` or `pilot` follows the branch of the same name in its sources, which is
+    where indexing and merged pull requests put samples; on any other branch the source stays on
+    the branch it is on.
+    """
+    source.update(sibling="origin", merge=False, result_renderer="disabled")
+    repo = source.repo
+    heads = {r.split("/", 1)[1] for r in repo.get_remote_branches() if "/" in r}
+    if branch in PROTECTED and branch in heads:
+        repo.call_git(["checkout", "-q", "-B", branch, f"origin/{branch}"])
+    else:
+        source.update(sibling="origin", merge=True, result_renderer="disabled")
+    # the source's own sources follow the revisions its new state records
+    repo.call_git(["submodule", "update", "--init", "--recursive"])
 
 
 def _own_sources(ds: Dataset) -> set[str]:
@@ -236,12 +277,14 @@ def due_tasks(
     instances: dict[str, dict[str, str]] | None = None,
     update: bool = False,
     content: bool | None = None,
+    reprocess: frozenset[str] = frozenset(),
 ) -> list[Due]:
     """Due tasks of the dataset's checked-out branch, in rule order. Changes nothing.
 
     Source-triggered tasks are due on the protected branches (their results arrive through a
     feature branch); content-triggered tasks on any other branch (they commit to it). `content`
-    overrides the choice made from the branch name.
+    overrides the choice made from the branch name. Samples named in `reprocess` (as
+    `entity=value,...`) are due even when their record is up to date.
     """
     from datalad.api import containers_list
 
@@ -264,7 +307,8 @@ def due_tasks(
         for sample, own in samples_of(rule, files).values():
             digest = digest_of(own)
             task = task_id(rule.id, sample)
-            if last_record(dataset.repo, task) == digest:
+            forced = sample_key(sample) in reprocess
+            if last_record(dataset.repo, task) == digest and not forced:
                 continue
             if not _required_present(rule, sample, trees, sources):
                 continue
@@ -289,6 +333,38 @@ def _required_present(rule: Rule, sample: dict[str, str], trees: Trees, sources:
     return True
 
 
+OUTPUT_TRAILER = "faire-output-sample"
+
+
+def sample_key(sample: dict[str, str]) -> str:
+    return ",".join(f"{k}={v}" for k, v in sample.items())
+
+
+def merged_samples(repo, since: str | None = None) -> tuple[str, ...]:
+    """Output samples named by the run records merged since `since` (else by the last merge).
+
+    A merged pull request carries the run records of its tasks; the samples they name are the
+    ones the datasets derived from this one are triggered for.
+    """
+    if since and set(since) != {"0"}:
+        span = f"{since}..HEAD"
+    else:
+        try:
+            repo.call_git(["rev-parse", "--verify", "-q", "HEAD^2"])
+            span = "HEAD^1..HEAD"  # a merge commit: what the merged branch brought
+        except Exception:
+            span = "HEAD~1..HEAD"
+    try:
+        log = repo.call_git(["log", span, "--format=%B"])
+    except Exception:
+        return ()
+    found: list[str] = []
+    for match in re.finditer(rf"^{OUTPUT_TRAILER}: (.+)$", log, re.MULTILINE):
+        if match.group(1) not in found:
+            found.append(match.group(1))
+    return tuple(found)
+
+
 def make_plan(
     dataset: Dataset,
     ruleset: RuleSet,
@@ -299,8 +375,17 @@ def make_plan(
     instances: dict[str, dict[str, str]] | None = None,
     downstream: tuple[str, ...] = (),
     update: bool = False,
+    since: str | None = None,
+    reprocess: frozenset[str] = frozenset(),
 ) -> CiPlan:
-    due = due_tasks(dataset, ruleset, default_site=default_site, instances=instances, update=update)
+    due = due_tasks(
+        dataset,
+        ruleset,
+        default_site=default_site,
+        instances=instances,
+        update=update,
+        reprocess=reprocess,
+    )
     tasks, counters = [], {}
     for item in due:
         target = branch_of(item.sample) if item.rule.trigger.source else branch
@@ -312,8 +397,14 @@ def make_plan(
     checks = ()
     if branch not in PROTECTED:
         checks = tuple(Check(c.id, c.blocking) for c in ruleset.checks)
+    protected = branch in PROTECTED
     return CiPlan(
-        dataset_id, branch, tuple(tasks), checks, downstream if branch in PROTECTED else ()
+        dataset_id,
+        branch,
+        tuple(tasks),
+        checks,
+        downstream if protected else (),
+        merged_samples(dataset.repo, since) if protected and downstream else (),
     )
 
 

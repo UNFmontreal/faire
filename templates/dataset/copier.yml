@@ -6,20 +6,32 @@ dataset_id:
   type: str
   help: Identifier of the dataset in the ma-DMP
 
-container_url:
+collection_name:
   type: str
-  help: Image of the reference container, pinned by digest
-  default: docker://busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+  help: Name of the container collection the reference container comes from
+  default: containers
+
+collection_source:
+  type: str
+  help: Where the container collection is cloned from (a DataLad dataset with datalad-container)
+
+collection_path:
+  type: str
+  help: Subdataset path the collection is installed at
+  default: code/containers
+
+collection_revision:
+  type: str
+  help: Exact commit or tag the collection is pinned to
 
 container_version:
   type: str
-  help: Exact version of the image (digest or tag with digest)
-  default: 1.36.1@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+  help: Version of the reference container, as named in the collection (tool--VERSION.*)
 
 container_call_fmt:
   type: str
-  help: Command format used to run the container
-  default: "singularity exec {img} {cmd}"
+  help: Call format replacing the collection's own for the reference container (optional)
+  default: ""
 
 source_dataset:
   type: str
@@ -39,6 +51,11 @@ license:
 license_spdx:
   type: str
   help: SPDX identifier of the license, when it has one
+  default: ""
+
+source_instance_glob:
+  type: str
+  help: "`*/` when the triggering source is an instrument stream (one folder per instrument)"
   default: ""
 
 derived_from:

@@ -1,5 +1,13 @@
-# Changes to the ma-DMP are validated on every merge request; require this pipeline to pass
-# before merging. FAIRE_IMAGE is a CI variable set when the project is bootstrapped.
+# Changes to the ma-DMP reach the study only through merge requests, and this pipeline must pass
+# before one can be merged (`faire init` sets "pipelines must succeed" on the project).
+# FAIRE_IMAGE is a CI variable set when the project is bootstrapped.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
 validate-madmp:
   image: $FAIRE_IMAGE
   script:

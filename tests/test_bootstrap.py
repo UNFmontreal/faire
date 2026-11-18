@@ -50,11 +50,10 @@ def test_template_fetch_failure_leaves_nothing(project):
 def test_sources_installed_under_sourcedata(project):
     project.init()
     std = repo(project, "standardized")
-    assert [
-        s.name
+    assert sorted(
+        Path(s["path"]).relative_to(std.path).as_posix()
         for s in std.subdatasets(result_renderer="disabled", return_type="list")
-        for s in [Path(s["path"])]
-    ] == ["a_PrismaFit16001"]
+    ) == ["code/containers", "sourcedata/dicoms/a_PrismaFit16001"]  # the collection and the source
     assert (Path(std.path) / "sourcedata/dicoms").is_dir()
     assert not Dataset(Path(std.path) / "sourcedata/dicoms").is_installed()  # plain directory
     assert Dataset(Path(std.path) / "sourcedata/dicoms/a_PrismaFit16001").is_installed()
@@ -63,8 +62,11 @@ def test_sources_installed_under_sourcedata(project):
         Path(s["path"]).relative_to(ana.path).as_posix()
         for s in ana.subdatasets(result_renderer="disabled", return_type="list")
     }
-    assert subs == {"sourcedata/standardized", "sourcedata/atlas"}  # triggering + resource
-    assert repo(project, "atlas").subdatasets(result_renderer="disabled", return_type="list") == []
+    assert subs == {"code/containers", "sourcedata/standardized", "sourcedata/atlas"}
+    atlas = repo(project, "atlas").subdatasets(result_renderer="disabled", return_type="list")
+    assert [Path(s["path"]).name for s in atlas] == [
+        "containers"
+    ]  # no sources, only the collection
 
 
 def test_study_superdataset_clone_installs_everything(project, tmp_path):
@@ -182,10 +184,11 @@ def test_additive_new_dataset_and_distribution(project):
     assert any("create dataset extra" in a for a in result.actions)
     assert not result.differences
     assert repo(project, "extra").is_installed()
-    assert [
-        s["path"]
-        for s in repo(project, "extra").subdatasets(result_renderer="disabled", return_type="list")
-    ] == [str(Path(repo(project, "extra").path) / "sourcedata/standardized")]
+    extra = repo(project, "extra")
+    assert sorted(
+        Path(s["path"]).relative_to(extra.path).as_posix()
+        for s in extra.subdatasets(result_renderer="disabled", return_type="list")
+    ) == ["code/containers", "sourcedata/standardized"]
     remotes = repo(project, "analysis").repo.get_special_remotes().values()
     assert {r["name"] for r in remotes} == {"accepted-site-storage", "review-site-storage"}
     after = commit_state(project, names)

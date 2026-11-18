@@ -1,6 +1,14 @@
-# Containers registered in the dataset by `faire init`; each pinned to an exact image version.
+# Containers of the dataset. `faire init` installs each collection as a subdataset at its pinned
+# revision, then freezes each container into the dataset's own container configuration.
+collections:
+  - name: {{ collection_name | tojson }}
+    source: {{ collection_source | tojson }}
+    path: {{ collection_path | tojson }}
+    revision: {{ collection_revision | tojson }}
 containers:
   - name: tool
-    url: "{{ container_url }}"
-    version: "{{ container_version }}"
-    call_fmt: "{{ container_call_fmt }}"
+    collection: {{ collection_name | tojson }}
+    version: {{ container_version | tojson }}
+{%- if container_call_fmt %}
+    call_fmt: {{ container_call_fmt | tojson }}
+{%- endif %}

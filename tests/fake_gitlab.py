@@ -84,6 +84,8 @@ class FakeGitLab(BaseAdapter):
         m = re.fullmatch(r"/projects/([^/]+)", path)
         if m and method == "GET":
             return lambda b, q: self._get_project(m.group(1))
+        if m and method == "PUT":
+            return lambda b, q: self._update_project(m.group(1), b)
         m = re.fullmatch(r"/projects/([^/]+)/(.+)", path)
         if m:
             project = self._project_by(m.group(1))
@@ -132,6 +134,13 @@ class FakeGitLab(BaseAdapter):
             for k, v in project.items()
             if k in ("id", "name", "path", "path_with_namespace", "http_url_to_repo", "web_url")
         }
+
+    def _update_project(self, key, body):
+        project = self._project_by(key)
+        if project is None:
+            return 404, {"message": "404 Not Found"}
+        project.setdefault("settings", {}).update(body)
+        return 200, self._public(project)
 
     def _get_project(self, key):
         project = self._project_by(key)

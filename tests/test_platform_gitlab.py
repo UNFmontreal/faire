@@ -41,6 +41,15 @@ class TestGitLabAgainstInProcessApi(PlatformConformance):
         platform.protect_tag(repo, "*")
         assert project["tags"]["*"]["create_access_level"] == 40
 
+    def test_merge_policy_requires_a_passing_pipeline_and_merge_commits(self):
+        platform, adapter = make()
+        repo = platform.ensure_repository(platform.ensure_group("g").path, "r")
+        platform.set_merge_policy(repo)
+        settings = next(iter(adapter.projects.values()))["settings"]
+        assert settings["only_allow_merge_if_pipeline_succeeds"] is True
+        assert settings["allow_merge_on_skipped_pipeline"] is False
+        assert settings["merge_method"] == "merge" and settings["squash_option"] == "never"
+
     def test_without_approval_rules_merges_stay_restricted(self):
         platform, adapter = make(approvals=False)
         repo = platform.ensure_repository(platform.ensure_group("g").path, "r")

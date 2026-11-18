@@ -22,6 +22,7 @@ class _Repo:
     repo: Repository
     branch_patterns: dict[str, int] = field(default_factory=dict)  # pattern -> approvals
     tag_patterns: set[str] = field(default_factory=set)
+    merge_policy: bool = False
     variables: dict[str, tuple[str, bool]] = field(default_factory=dict)
     pull_requests: list[PullRequest] = field(default_factory=list)
 
@@ -36,6 +37,7 @@ class FakePlatform(Platform):
         self.repos: dict[str, _Repo] = {}
         self.pipelines: list[tuple[str, str, dict[str, str]]] = []
         self.group_variables: dict[str, dict[str, str]] = {}
+        self.merged: set[int] = set()  # numbers of pull requests accepted (tests close them)
 
     def ensure_group(self, path: str) -> Group:
         parts = path.strip("/").split("/")
@@ -76,6 +78,9 @@ class FakePlatform(Platform):
 
     def protect_tag(self, repo: Repository, pattern: str) -> None:
         self._entry(repo).tag_patterns.add(pattern)
+
+    def set_merge_policy(self, repo: Repository) -> None:
+        self._entry(repo).merge_policy = True
 
     def set_variable(
         self, repo: Repository, key: str, value: str, protected_refs_only: bool = False
@@ -126,6 +131,15 @@ class FakePlatform(Platform):
 
     def protected_branches(self, repo: Repository) -> dict[str, int]:
         return dict(self._entry(repo).branch_patterns)
+
+    def open_pull_requests(self, repo: Repository) -> list[PullRequest]:
+        return [pr for pr in self._entry(repo).pull_requests if pr.number not in self.merged]
+
+    def pull_requests(self, repo: Repository) -> list[PullRequest]:
+        return list(self._entry(repo).pull_requests)
+
+    def merge_policy(self, repo: Repository) -> bool:
+        return self._entry(repo).merge_policy
 
     def protected_tags(self, repo: Repository) -> set[str]:
         return set(self._entry(repo).tag_patterns)

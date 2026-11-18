@@ -1,0 +1,22 @@
+# {{ dataset_title or dataset_id }}
+
+Source dataset `{{ dataset_id }}`: the files one instrument produced, indexed sample by sample
+by `faire index` with the heuristic in `.faire/heuristic.py`, and described in the study's
+machine-actionable data management plan (ma-DMP).
+
+## Get the content
+
+    datalad clone <url of this dataset> && cd <dataset>
+    datalad get <path>
+
+## Indexing
+
+Received files are brought in with `faire index <directory> --stream {{ dataset_id }}`. The
+heuristic decides, for each received sample, the instrument, the entity values, whether the
+sample is a pilot, which files to keep, which are sensitive and where each is stored (see
+the comments in `.faire/heuristic.py`). Each indexing commit records the entities, the pilot
+status and the heuristic's revision.
+
+## License
+
+{{ license }} (see `LICENSE`).

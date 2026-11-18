@@ -1,3 +1,5 @@
+.gitattributes annex.largefiles=nothing
+.gitmodules annex.largefiles=nothing
 *.md annex.largefiles=nothing
 madmp.json annex.largefiles=nothing
 sites/** annex.largefiles=nothing

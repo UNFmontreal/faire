@@ -7,7 +7,7 @@ rules:
     container: tool
     command: "sh -c 'mkdir -p {subject}/{session} && cat {inputs} > {outputs}'"
     inputs:
-      - pattern: "sourcedata/{{ source_dataset }}/{subject}/{session}/*.txt"
+      - pattern: "sourcedata/{{ source_dataset }}/{{ source_instance_glob }}{subject}/{session}/*.txt"
         required: true
     outputs:
       - "{subject}/{session}/processed.txt"
@@ -21,5 +21,5 @@ checks:
     command: "test -f .faire/rules.yaml"
     blocking: true
   - id: protocol
-    command: "true"                       # replace with the dataset's protocol-conformance tool
+    command: "python3 .faire/protocol.py check"   # warns about what the protocol expects
     blocking: false

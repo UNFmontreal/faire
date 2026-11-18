@@ -85,7 +85,7 @@ def test_only_declared_inputs_are_requested(tmp_path):
     record = json.loads(log(ds).split("=== Do not change lines below ===")[1].split("^^^")[0])
     assert record["inputs"] == ["sourcedata/src/01/*.txt"]
     assert record["outputs"] == ["01/processed.txt"]
-    assert record["extra_inputs"] == [".datalad/environments/tool/image"]
+    assert record["extra_inputs"] == ["code/containers/images/tool--test-1.sif"]  # the frozen image
 
 
 def test_unmet_required_input_is_a_silent_skip(tmp_path):

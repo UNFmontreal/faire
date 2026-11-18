@@ -103,6 +103,10 @@ class Distribution(_View):
         return self.ext.get("stage")
 
     @property
+    def data_access(self) -> str | None:
+        return self.raw.get("data_access")
+
+    @property
     def two_way(self) -> bool:
         return bool(self.ext.get("two_way", False))
 
@@ -198,6 +202,18 @@ class Dataset(_View):
                 if dist.licenses:
                     return dist.licenses[0]
         return None
+
+    @property
+    def access_restricted(self) -> bool:
+        """Declared access-restricted: no distribution of the dataset gives access beyond its
+        project (every one is `closed`)."""
+        dists = self.distributions
+        return bool(dists) and all(d.data_access == "closed" for d in dists)
+
+    @property
+    def hub_distribution(self) -> Distribution | None:
+        """The two-way distribution to the hub: a dataset is federated if it has one."""
+        return next((d for d in self.distributions if d.two_way), None)
 
     @property
     def releases(self) -> list[dict[str, Any]]:

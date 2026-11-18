@@ -47,6 +47,11 @@ class PlatformConformance:
         platform.protect_tag(repo, "*")
         platform.protect_tag(repo, "*")
 
+    def test_merge_policy_can_be_set_repeatedly(self, platform):
+        repo = platform.ensure_repository(platform.ensure_group("grp").path, "repo")
+        platform.set_merge_policy(repo)
+        platform.set_merge_policy(repo)
+
     def test_file_url_names_the_branch_and_path(self, platform):
         platform.ensure_group("grp")
         repo = platform.ensure_repository(platform.ensure_group("grp").path, "repo")
@@ -61,6 +66,15 @@ class PlatformConformance:
         other = platform.ensure_pull_request(repo, "feature/s2", "dev", "S2", "x")
         assert first.number == second.number != other.number
         assert second.description == "two"
+
+    def test_open_pull_requests_are_listed(self, platform):
+        repo = platform.ensure_repository(platform.ensure_group("grp").path, "repo")
+        self.seed(platform, repo, "dev", "feature/s1")
+        assert platform.open_pull_requests(repo) == []
+        pr = platform.ensure_pull_request(repo, "feature/s1", "dev", "S1", "one")
+        assert [(p.number, p.source, p.target) for p in platform.open_pull_requests(repo)] == [
+            (pr.number, "feature/s1", "dev")
+        ]
 
     def test_trigger_pipeline(self, platform):
         repo = platform.ensure_repository(platform.ensure_group("grp").path, "repo")

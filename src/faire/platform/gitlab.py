@@ -162,6 +162,17 @@ class GitLabPlatform(Platform):
         except gle.GitlabError as exc:
             raise self._wrap(exc) from exc
 
+    def set_merge_policy(self, repo: Repository) -> None:
+        project = self._p(repo)
+        project.only_allow_merge_if_pipeline_succeeds = True
+        project.allow_merge_on_skipped_pipeline = False
+        project.merge_method = "merge"
+        project.squash_option = "never"
+        try:
+            project.save()
+        except gle.GitlabError as exc:
+            raise self._wrap(exc) from exc
+
     # -- variables -------------------------------------------------------------------------------
 
     def set_variable(
@@ -214,7 +225,19 @@ class GitLabPlatform(Platform):
                 mr.title, mr.description = title, description
                 mr.save()
             else:
-                mr = project.mergerequests.create(
+                mr = self._create_merge_request(project, source, target, title, description)
+        except gle.GitlabError as exc:
+            raise self._wrap(exc) from exc
+        return PullRequest(
+            repo.path, mr.iid, source, target, title, description, getattr(mr, "web_url", "")
+        )
+
+    @staticmethod
+    def _create_merge_request(project, source, target, title, description):
+        """Create the merge request; a branch pushed a moment ago may not be visible yet."""
+        for attempt in range(6):
+            try:
+                return project.mergerequests.create(
                     {
                         "source_branch": source,
                         "target_branch": target,
@@ -222,11 +245,28 @@ class GitLabPlatform(Platform):
                         "description": description,
                     }
                 )
+            except gle.GitlabCreateError as exc:
+                if "does not exist" not in str(exc) or attempt == 5:
+                    raise
+                time.sleep(2)
+
+    def open_pull_requests(self, repo: Repository) -> list[PullRequest]:
+        try:
+            found = self._p(repo).mergerequests.list(state="opened", get_all=True)
         except gle.GitlabError as exc:
             raise self._wrap(exc) from exc
-        return PullRequest(
-            repo.path, mr.iid, source, target, title, description, getattr(mr, "web_url", "")
-        )
+        return [
+            PullRequest(
+                repo.path,
+                mr.iid,
+                mr.source_branch,
+                mr.target_branch,
+                mr.title,
+                mr.description or "",
+                getattr(mr, "web_url", ""),
+            )
+            for mr in found
+        ]
 
     def file_url(self, repo: Repository, ref: str, path: str) -> str:
         return f"{repo.url.removesuffix('.git')}/-/blob/{ref}/{path}"

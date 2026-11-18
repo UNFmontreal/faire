@@ -6,10 +6,14 @@ so the content goes to the `review`-stage storage before the branch is pushed.
 
 from __future__ import annotations
 
+import json
+import re
+import subprocess
 from dataclasses import dataclass, field
 
 from datalad.api import Dataset
 
+from faire import filters
 from faire.platform import Platform, PullRequest, Repository
 
 REVIEW_PREFIX = "review-"
@@ -28,11 +32,43 @@ def review_remotes(ds: Dataset) -> list[str]:
     return sorted(n for n in names if n and n.startswith(REVIEW_PREFIX))
 
 
+def originals_of(ds: Dataset) -> list[tuple[str, str]]:
+    """(key, path) of the originals inline processing replaced, in the commits not yet pushed."""
+    body = ds.repo.call_git(["log", "HEAD", "--not", "--remotes", "--format=%B"])
+    found: list[tuple[str, str]] = []
+    for key, path in re.findall(r"^faire-original: (\S+) (.+)$", body, re.MULTILINE):
+        if (key, path) not in found:
+            found.append((key, path))
+    return found
+
+
+def _annex(ds: Dataset, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", "annex", *args], cwd=ds.path, capture_output=True, text=True)
+
+
+def copy_originals(ds: Dataset, remote: str, originals: list[tuple[str, str]]) -> None:
+    """Send the replaced originals to the remote when its rules want them.
+
+    They are no longer in the tree, so `copy --auto` cannot see them: the remote's wanted
+    expression is evaluated here against each original's path and annex metadata.
+    """
+    wanted = _annex(ds, "wanted", remote).stdout.strip() or "anything"
+    for key, path in originals:
+        shown = _annex(ds, "metadata", "--json", "--key", key).stdout.strip()
+        fields = (json.loads(shown).get("fields") or {}) if shown else {}
+        metadata = {k: v for k, v in fields.items() if not k.endswith("-lastchanged")}
+        if filters.matches(wanted, path, metadata):
+            _annex(ds, "copy", "--to", remote, "--key", key)
+
+
 def push_results(ds: Dataset, branch: str, remote: str = "origin") -> Published:
     """Send content to the review storage, then the branch (and annex metadata) to `remote`."""
     out = Published()
+    keys = originals_of(ds)
     for name in review_remotes(ds):
         ds.push(to=name, result_renderer="disabled", on_failure="stop")
+        # the replaced originals are no longer in the tree: copy them where they are wanted
+        copy_originals(ds, name, keys)
         out.pushed_to.append(name)
     if not review_remotes(ds):
         out.notes.append("no review storage declared: content stays with the repository")

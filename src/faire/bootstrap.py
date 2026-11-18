@@ -17,14 +17,14 @@ from typing import Any
 import yaml
 from datalad.api import Dataset, clone, create
 
-from faire import containers, plan, sites, study, templates
+from faire import containers, federation, plan, remotes, sites, study, templates
 from faire.model import Dmp
 from faire.plan import Item
 from faire.platform import Platform, Repository
 
 RECORD = ".faire/dataset.yaml"
 BRANCHES = ("dev", "pilot", "main")
-EARLY_STAGES = ("collection", "review", "accepted")
+EARLY_STAGES = remotes.EARLY_STAGES
 MAIN = "main"
 PROTECTED_BRANCHES = ("dev", "pilot", "main")
 SAMPLE_BRANCHES = "feature/*"  # branches the tool opens for samples; may read task secrets
@@ -33,6 +33,7 @@ REQUIRED_OPERATIONS = (
     "ensure_repository",
     "protect_branch",
     "protect_tag",
+    "set_merge_policy",
     "set_variable",
 )
 STUDY_REPO = "study"
@@ -77,8 +78,50 @@ class Result:
         return bool(self.actions)
 
 
-def slug(text: str) -> str:
-    return re.sub(r"[^A-Za-z0-9]+", "-", text).strip("-").lower()
+slug = remotes.slug
+
+
+def protect_repository(platform: Platform, repo: Repository) -> list[str]:
+    """Protect a repository the way every dataset repository is; return what could not be."""
+    notes: list[str] = []
+    for pattern in PROTECTED_BRANCHES:
+        result = platform.protect_branch(repo, pattern, approvals=1)
+        notes += [n for n in result.notes if n not in notes]
+    platform.protect_branch(repo, SAMPLE_BRANCHES, approvals=0)
+    platform.protect_tag(repo, "*")
+    platform.set_merge_policy(repo)
+    return notes
+
+
+def propose_registration(
+    ds: Dataset, branch: str, link: dict[str, Any], source_url: str, instance: str | None
+) -> None:
+    """Register an instrument instance as a source of a derived dataset, on a branch.
+
+    The change is made on `branch` (from `dev`), to be reviewed through a pull request; the
+    dataset's own branches are left untouched and the checked-out branch is restored.
+    """
+    repo = ds.repo
+    previous = repo.get_active_branch()
+    repo.call_git(["branch", branch, "dev"])
+    repo.checkout(branch)
+    try:
+        clone(
+            source=source_url,
+            path=str(Path(ds.path) / link["path"]),
+            dataset=ds,
+            result_renderer="disabled",
+        )
+        record = Path(ds.path) / RECORD
+        data = yaml.safe_load(record.read_text())
+        data["sources"].append(link)
+        record.write_text(yaml.safe_dump(data, sort_keys=False))
+        title = f"Register instrument instance {instance}"
+        ds.save(
+            message=f"{title}\n\nfaire-register-instance: {instance}", result_renderer="disabled"
+        )
+    finally:
+        repo.checkout(previous)
 
 
 def spdx_id(license_url: str | None) -> str:
@@ -136,6 +179,7 @@ class Bootstrap:
         self.result = Result()
         self.items = {i.key: i for i in plan.creation_plan(dmp, site_config.site)}
         self._would_exist: set[str] = set()
+        self.joined: set[str] = set()  # federated datasets installed from the hub
 
     # -- helpers -----------------------------------------------------------------------------
 
@@ -161,6 +205,7 @@ class Bootstrap:
             self.platform.require(REQUIRED_OPERATIONS)  # before any change is made
             if not self.dry:
                 self.platform.ensure_group(self.group)
+        self.join_from_hub()
         for item in self.items.values():
             if not item.create:
                 self.result.skipped.append(
@@ -170,17 +215,68 @@ class Bootstrap:
             if self.ws.repo_path(item).exists():
                 if not self.reconcile_existing(item):
                     continue
+                if item.key in self.joined:  # own instruments join the history received
+                    self.register_own_instances(item)
                 self.publish_if_missing(item)
             else:
                 self.create_dataset(item)
                 self.install_sources(item)
                 self.publish_new(item)
             self.configure_remotes(item)
+            self.publish_annex_state(item)
             self.configure_platform(item)
         self.report_unplanned()
         self.create_study()
         self.report_missing_secrets()
         return self.result
+
+    def join_from_hub(self) -> None:
+        """A federated dataset the hub already holds, or any dataset a shared platform already
+        holds, is installed from there instead of being created again."""
+        for item in self.items.values():
+            dataset = self.dmp.dataset(item.dataset_id)
+            path = self.ws.repo_path(item)
+            if not item.create or path.exists():
+                continue
+            if (
+                self.site.hub_url
+                and dataset.hub_distribution
+                and federation.hub_has(self.site, item.repo_name)
+            ):
+                self.joined.add(item.key)
+                self.do(
+                    f"install {item.key} from the hub",
+                    lambda item=item, path=path: federation.install_from_hub(
+                        self.site, item.repo_name, path
+                    ),
+                )
+            elif self.platform is not None:
+                repo = self.platform.get_repository(self.group, item.repo_name)
+                if repo is not None:
+                    self.joined.add(item.key)
+                    self.do(
+                        f"install {item.key} from {repo.path}",
+                        lambda repo=repo, path=path: federation.install(repo.url, path, "origin"),
+                    )
+
+    def _on_platform(self, name: str) -> bool:
+        return self.platform is not None and self.platform.get_repository(self.group, name)
+
+    def register_own_instances(self, item: Item) -> None:
+        """Instances of this site's instruments join a dataset received from elsewhere: directly
+        where nothing protects its branches, as a proposal where a platform does."""
+        for link in item.sources:
+            source = self.items[link.key]
+            path = self.ws.repo_path(item)
+            seen = Dataset(path).repo.call_git(["ls-tree", "main", "--", link.path]).strip()
+            if not source.create or seen or not self.exists(source):
+                continue
+            if self.platform is None:
+                self._install(path, link.path, source)
+                self._align_branches(item)
+            else:
+                spec = {"path": link.path, "key": link.key, "role": link.role}
+                self.register_instance(item, source, spec)
 
     # -- platform ------------------------------------------------------------------------------
 
@@ -200,14 +296,7 @@ class Bootstrap:
         self.repositories[key] = repo
         if "origin" not in ds.repo.get_remotes():
             ds.siblings("add", name="origin", url=repo.url, result_renderer="disabled")
-        # git-annex may write to the remote while the push updates availability information,
-        # which makes the first attempt on the git-annex branch a non-fast-forward; the second
-        # attempt merges it
-        failed = ds.push(
-            to="origin", data="nothing", result_renderer="disabled", on_failure="ignore"
-        )
-        if any(r.get("status") not in ("ok", "notneeded") for r in failed):
-            ds.push(to="origin", data="nothing", result_renderer="disabled")
+        self._push_state(ds)
         # the git-annex branch is synchronised by the push above, which merges what the
         # remote holds; pushing it again as a plain branch is rejected once the remote moved
         branches = [
@@ -216,6 +305,28 @@ class Bootstrap:
         if branches:
             ds.repo.push(remote="origin", refspec=branches)
         return repo
+
+    @staticmethod
+    def _push_state(ds: Dataset) -> None:
+        """Push the checked-out branch and the git-annex branch to `origin`."""
+        # git-annex may write to the remote while the push updates availability information,
+        # which makes the first attempt on the git-annex branch a non-fast-forward; the second
+        # attempt merges it
+        failed = ds.push(
+            to="origin", data="nothing", result_renderer="disabled", on_failure="ignore"
+        )
+        if any(r.get("status") not in ("ok", "notneeded") for r in failed):
+            ds.push(to="origin", data="nothing", result_renderer="disabled")
+
+    def publish_annex_state(self, item: Item) -> None:
+        """Make the special remotes created after publication known to the platform's copy, so
+        that a fresh clone can enable them."""
+        path = self.ws.repo_path(item)
+        if self.platform is None or self.dry or not path.exists():
+            return
+        ds = Dataset(path)
+        if "origin" in ds.repo.get_remotes():
+            self._push_state(ds)
 
     def publish_new(self, item: Item) -> None:
         if self.platform is None:
@@ -238,13 +349,9 @@ class Bootstrap:
     def protect(self, repo: Repository) -> None:
         """Merge-only branches, approvals, protected release tags, sample branches (D32)."""
         assert self.platform is not None
-        for pattern in PROTECTED_BRANCHES:
-            result = self.platform.protect_branch(repo, pattern, approvals=1)
-            for note in result.notes:
-                if note not in self.result.notes:
-                    self.result.notes.append(note)
-        self.platform.protect_branch(repo, SAMPLE_BRANCHES, approvals=0)
-        self.platform.protect_tag(repo, "*")
+        for note in protect_repository(self.platform, repo):
+            if note not in self.result.notes:
+                self.result.notes.append(note)
 
     def variables_for(self, item: Item) -> dict[str, str]:
         """CI variables derived from the ma-DMP: sources, downstream datasets, secret names."""
@@ -252,7 +359,7 @@ class Bootstrap:
             {
                 other.repo_name
                 for other in self.items.values()
-                if any(link.key == item.key for link in other.sources)
+                if any(link.key == item.key and link.triggering for link in other.sources)
             }
         )
         variables = {
@@ -366,23 +473,9 @@ class Bootstrap:
         )
 
     def _propose(self, item: Item, source: Item, link: dict[str, Any], branch: str) -> None:
-        ds = Dataset(self.ws.repo_path(item))
-        repo = ds.repo
-        previous = repo.get_active_branch()
-        repo.call_git(["branch", branch, "dev"])
-        repo.checkout(branch)
-        try:
-            self._install(Path(ds.path), link["path"], source)
-            record = Path(ds.path) / RECORD
-            data = yaml.safe_load(record.read_text())
-            data["sources"].append(link)
-            record.write_text(yaml.safe_dump(data, sort_keys=False))
-            ds.save(
-                message=f"Register instrument instance {source.instance}",
-                result_renderer="disabled",
-            )
-        finally:
-            repo.checkout(previous)
+        propose_registration(
+            Dataset(self.ws.repo_path(item)), branch, link, self.url(source), source.instance
+        )
 
     def report_unplanned(self) -> None:
         if not self.ws.repos.exists():
@@ -413,12 +506,19 @@ class Bootstrap:
                 "license": dataset.license or "",
                 "license_spdx": spdx_id(dataset.license),
                 "derived_from": [s.path for s in item.sources],
+                # sources that are instrument streams hold one folder per instrument
+                "source_instance_glob": (
+                    "*/" if any(len(Path(s.path).parts) == 3 for s in item.sources) else ""
+                ),
             }
             templates.render(tpl.repository, ds, data, tpl.version)
             record = Path(ds.path) / RECORD
             record.parent.mkdir(parents=True, exist_ok=True)
             record.write_text(yaml.safe_dump(record_for(self.dmp, item), sort_keys=False))
-            containers.register(ds)
+            try:
+                containers.register(ds)
+            except containers.ContainerError as exc:
+                raise BootstrapError(f"{item.key} is not created: {exc}") from exc
             ds.save(message="Create dataset from its template", result_renderer="disabled")
             self._branches(ds)
         except BaseException:
@@ -434,7 +534,27 @@ class Bootstrap:
             if branch not in repo.get_branches():
                 repo.call_git(["branch", branch])
 
+    def _align_branches(self, item: Item) -> None:
+        """Let `dev` and `pilot` have what `main` gained since they were created (the sources),
+        as long as they have not moved on their own."""
+        path = self.ws.repo_path(item)
+        if self.dry or not path.exists():
+            return
+        repo = Dataset(path).repo
+        for branch in BRANCHES:
+            if branch == MAIN or branch not in repo.get_branches():
+                continue
+            try:
+                repo.call_git(["merge-base", "--is-ancestor", branch, MAIN])
+            except Exception:
+                continue  # it has commits of its own: leave it
+            repo.call_git(["branch", "-f", branch, MAIN])
+
     def install_sources(self, item: Item) -> None:
+        self._install_sources(item)
+        self._align_branches(item)
+
+    def _install_sources(self, item: Item) -> None:
         path = self.ws.repo_path(item)
         for link in item.sources:
             source = self.items[link.key]
@@ -463,63 +583,38 @@ class Bootstrap:
 
     def configure_remotes(self, item: Item) -> None:
         dataset = self.dmp.dataset(item.dataset_id)
-        used: set[str] = set()
-        for dist in dataset.distributions:
-            if dist.stage not in EARLY_STAGES or dist.two_way or dist.host is None:
-                continue
-            name = f"{dist.stage}-{slug(dist.host.key)}"
-            n = 1
-            while name in used:
-                n += 1
-                name = f"{dist.stage}-{slug(dist.host.key)}-{n}"
-            used.add(name)
-            remote_type, params = self._transport(dist.host, item)
-            wanted = dist.filter or "anything"
-            if self._remote_current(item, name, wanted):
+        try:
+            wanted = remotes.specs(dataset, item.repo_name, self.site)
+        except (remotes.RemoteError, sites.SiteConfigError) as exc:
+            raise BootstrapError(str(exc)) from exc
+        for spec in wanted:
+            if self._remote_current(item, spec):
                 continue
             self.do(
-                f"special remote {name} ({remote_type}) in {item.key}, wanted: {wanted}",
-                lambda n=name, t=remote_type, p=params, w=wanted: self._remote(item, n, t, p, w),
+                f"special remote {spec.name} ({spec.type}) in {item.key}, wanted: {spec.wanted}",
+                lambda spec=spec: remotes.create(Dataset(self.ws.repo_path(item)), spec),
             )
 
-    def _remote_current(self, item: Item, name: str, wanted: str) -> bool:
-        """True when the remote exists with the wanted rule already set."""
+    def _remote_current(self, item: Item, spec: remotes.RemoteSpec) -> bool:
         path = self.ws.repo_path(item)
-        if not path.exists():
-            return False
-        repo = Dataset(path).repo
-        names = {r.get("name") for r in repo.get_special_remotes().values()}
-        return name in names and repo.get_preferred_content("wanted", name) == wanted
-
-    def _transport(self, host: Any, item: Item) -> tuple[str, dict[str, Any]]:
-        if host.site_dependent:
-            mapping = self.site.mapping(host.key)
-            remote_type, params = mapping.type, dict(mapping.parameters)
-        elif host.method:
-            remote_type, params = host.method, dict(host.parameters)
-        else:
-            raise BootstrapError(f"host {host.title!r} declares no transfer method")
-        if remote_type == "directory" and "directory" in params:
-            params["directory"] = str(Path(params["directory"]) / item.repo_name)
-        return remote_type, params
-
-    def _remote(self, item: Item, name: str, remote_type: str, params: dict, wanted: str) -> None:
-        ds = Dataset(self.ws.repo_path(item))
-        repo = ds.repo
-        existing = {r.get("name") for r in repo.get_special_remotes().values()}
-        if name not in existing:
-            if remote_type == "directory":
-                Path(params["directory"]).mkdir(parents=True, exist_ok=True)
-            options = [f"type={remote_type}", "encryption=none"]
-            options += [f"{k}={v}" for k, v in params.items()]
-            repo.init_remote(name, options)
-        repo.set_preferred_content("wanted", wanted, remote=name)
+        return path.exists() and remotes.current(Dataset(path), spec)
 
     # -- study superdataset ------------------------------------------------------------------
 
     def create_study(self) -> None:
         path = self.ws.study
-        if not path.exists():
+        if not path.exists() and self.site.hub_url and federation.hub_has(self.site, STUDY_REPO):
+            self.do(
+                "install the study superdataset from the hub",
+                lambda: federation.install_from_hub(self.site, STUDY_REPO, path),
+            )
+        elif not path.exists() and self._on_platform(STUDY_REPO):
+            repo = self.platform.get_repository(self.group, STUDY_REPO)
+            self.do(
+                "install the study superdataset from the platform",
+                lambda: federation.install(repo.url, path, "origin"),
+            )
+        elif not path.exists():
             self.do("create study superdataset", self._create_study)
         layout = None
         if path.exists():
@@ -547,12 +642,17 @@ class Bootstrap:
         if not existed:
             self.result.actions.append(f"publish study as {repo.path}")
             self.protect(repo)
+        # the study's validation pipeline runs in the tool's image
+        if self.faire_image and self.platform.get_variables(repo).get("FAIRE_IMAGE") != (
+            self.faire_image
+        ):
+            self.do(
+                f"set CI variable FAIRE_IMAGE on {repo.path}",
+                lambda: self.platform.set_variable(repo, "FAIRE_IMAGE", self.faire_image),
+            )
 
     def _study_path(self, item: Item, layout: study.StudyLayout | None) -> str | None:
-        layout = layout or study.StudyLayout("", "madmp.json", "sites")
-        if item.is_instance:
-            return f"{layout.path_of(item.stream)}/{item.instance}"
-        return layout.path_of(item.dataset_id)
+        return study.path_for(item, layout)
 
     def _create_study(self) -> None:
         path = self.ws.study

@@ -64,7 +64,17 @@ def test_protection_of_branches_tags_and_sample_branches(project, platform):
         branches = platform.protected_branches(repo)
         assert branches == {"dev": 1, "pilot": 1, "main": 1, "feature/*": 0}
         assert platform.protected_tags(repo) == {"*"}
+        assert platform.merge_policy(repo)  # pipelines must pass; merge commits only
     assert not result.notes
+
+
+def test_study_validation_runs_in_the_tool_image_and_is_required(project, platform):
+    project.init(platform=platform, group=GROUP, faire_image="reg/faire:1")
+    study = platform.get_repository(GROUP, "study")
+    assert platform.get_variables(study) == {"FAIRE_IMAGE": "reg/faire:1"}
+    assert platform.merge_policy(study)
+    ci = (project.ws.study / ".gitlab-ci.yml").read_text()
+    assert "faire validate madmp.json" in ci and "merge_request_event" in ci
 
 
 def test_approvals_unavailable_is_reported(project, tmp_path):

@@ -21,3 +21,12 @@ run:
       - artifact: child-pipeline.yml
         job: plan
     strategy: depend
+
+# Once a registration of an instrument instance has been merged, ask the study to declare the
+# instrument in the ma-DMP. It does nothing on other branches and when nothing is missing.
+registrations:
+  stage: plan
+  image: $FAIRE_IMAGE
+  allow_failure: true
+  script:
+    - faire registrations

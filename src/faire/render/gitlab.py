@@ -13,7 +13,7 @@ from typing import Any
 
 import yaml
 
-from faire.ciplan import CiPlan, Task
+from faire.ciplan import PROTECTED, CiPlan, Task
 
 IMAGE = "$FAIRE_IMAGE"
 
@@ -69,16 +69,22 @@ def render(plan: CiPlan, runner_tags: dict[str, list[str]] | None = None) -> dic
         check_names.append(name)
 
     blocking = [check_job_name(c.id) for c in plan.checks if c.blocking]
+    # downstream datasets follow the stream this pipeline is on (`dev` or `pilot`), and are
+    # started for each sample the merged pull requests produced, not for the samples that
+    # triggered them
+    branch = plan.branch if plan.branch in PROTECTED else "dev"
     for target in plan.downstream:
-        jobs[f"downstream-{_slug(target)}"] = {
-            "stage": "downstream",
-            "trigger": {"project": target, "branch": "dev"},
-            "variables": {
-                "FAIRE_UPSTREAM": plan.dataset,
-                "FAIRE_REVISION": "$CI_COMMIT_SHA",
-            },
-            "needs": blocking or list(last_tasks),
-        }
+        for n, sample in enumerate(plan.samples or (None,)):
+            variables = {"FAIRE_UPSTREAM": plan.dataset, "FAIRE_REVISION": "$CI_COMMIT_SHA"}
+            if sample:
+                variables["FAIRE_SAMPLE"] = sample
+            suffix = f"-{n + 1}" if len(plan.samples) > 1 else ""
+            jobs[f"downstream-{_slug(target)}{suffix}"] = {
+                "stage": "downstream",
+                "trigger": {"project": target, "branch": branch},
+                "variables": variables,
+                "needs": blocking or list(last_tasks),
+            }
 
     if not jobs:
         jobs["nothing-to-do"] = {

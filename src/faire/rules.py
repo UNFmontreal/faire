@@ -7,6 +7,7 @@ rules:
     command: "sh -c 'cat {inputs} > {outputs}'"   # {inputs}/{outputs}: datalad placeholders
     inputs: [{pattern: "sourcedata/dicoms/{subject}/*.txt", required: true}]
     outputs: ["{subject}/processed.txt"]
+    captured: [subject]              # optional: entities whose output values the files tell
     artifacts: [".faire/logs/"]
     listing: ["{subject}/report.html"]
 checks:
@@ -65,6 +66,11 @@ class Rule:
     artifacts: tuple[str, ...] = ()
     listing: tuple[str, ...] = ()
     optional: bool = False
+    #: entities of the output patterns whose values are found in the files the task writes
+    captured: tuple[str, ...] = ()
+
+    def output_entities(self) -> list[str]:
+        return entities_of(self.outputs)
 
     def trigger_patterns(self) -> tuple[str, ...]:
         """Patterns whose files' state decides whether the rule is due."""
@@ -110,18 +116,23 @@ def entities_of(patterns: tuple[str, ...] | list[str]) -> list[str]:
     return names
 
 
-def resolve(pattern: str, sample: dict[str, str]) -> str:
-    """Substitute a sample's entity values into a pattern."""
+def resolve(pattern: str, sample: dict[str, str], keep: tuple[str, ...] | set[str] = ()) -> str:
+    """Substitute a sample's entity values into a pattern; entities in `keep` stay as they are."""
 
     def sub(match: re.Match[str]) -> str:
         name = match.group(1)
-        if name in DATALAD_PLACEHOLDERS:
+        if name in DATALAD_PLACEHOLDERS or name in keep:
             return match.group(0)
         if name not in sample:
             raise MissingEntity(f"pattern {pattern!r} uses entity {name!r}, which the sample lacks")
         return sample[name]
 
     return _FIELD.sub(sub, pattern)
+
+
+def wildcard(pattern: str, entities: tuple[str, ...] | set[str]) -> str:
+    """The pattern with the given entity placeholders replaced by `*` (one path component)."""
+    return _FIELD.sub(lambda m: "*" if m.group(1) in entities else m.group(0), pattern)
 
 
 def _glob_regex(text: str) -> str:
@@ -194,7 +205,15 @@ def parse(raw: dict[str, Any], version: str = "") -> RuleSet:
             tuple(entry.get("artifacts") or ()),
             tuple(entry.get("listing") or ()),
             bool(entry.get("optional")),
+            tuple(entry.get("captured") or ()),
         )
+        unused = [e for e in rule.captured if e not in rule.output_entities()]
+        if unused:
+            raise RuleError(
+                f"rule {rule_id!r}: captured entity {unused[0]!r} does not appear in its outputs"
+            )
+        if rule.captured and not rule.outputs:
+            raise RuleError(f"rule {rule_id!r}: captured entities need output patterns")
         if not rule.trigger_patterns():
             raise RuleError(f"rule {rule_id!r}: nothing declares what triggers it")
         rules.append(rule)
@@ -246,3 +265,13 @@ class Sample:
     @property
     def slug(self) -> str:
         return "_".join(f"{k}-{v}" for k, v in self.values.items())
+
+
+def entity_names(root: str | Path) -> list[str]:
+    """Entity names the dataset's rules use, in first-use order (empty without rules)."""
+    names: list[str] = []
+    for rule in load(root).rules:
+        for name in [*rule.entities(), *rule.output_entities()]:
+            if name not in names:
+                names.append(name)
+    return names

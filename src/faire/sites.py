@@ -11,6 +11,11 @@ secrets are referred to by name and held by each site's platform.
         secrets: {}             # parameter -> secret name
     runners:
       tags: [site-a]
+    hub:                        # only in a federated study
+      url: /srv/hub             # repositories are `<url>/<repository>.git`
+      storage:                  # optional: where the hub keeps content, as for any host
+        type: directory
+        parameters: {directory: /srv/hub-content}
 """
 
 from __future__ import annotations
@@ -43,6 +48,13 @@ class SiteConfig:
     site: str
     hosts: dict[str, HostMapping]
     runner_tags: tuple[str, ...] = ()
+    hub_url: str | None = None
+    hub_storage: HostMapping | None = None
+
+    def hub_repository(self, name: str) -> str:
+        if not self.hub_url:
+            raise SiteConfigError(f"site {self.site!r} does not say where the hub is (`hub.url`)")
+        return f"{self.hub_url.rstrip('/')}/{name}.git"
 
     def mapping(self, host_key: str) -> HostMapping:
         try:
@@ -57,7 +69,11 @@ def parse(data: Any, origin: str = "site configuration") -> SiteConfig:
     if not isinstance(data, dict) or not isinstance(data.get("site"), str) or not data["site"]:
         raise SiteConfigError(f"{origin}: a `site` identifier is required")
     hosts: dict[str, HostMapping] = {}
-    for key, raw in (data.get("hosts") or {}).items():
+    hub = data.get("hub") or {}
+    declared = dict(data.get("hosts") or {})
+    if hub.get("storage"):
+        declared["hub storage"] = hub["storage"]
+    for key, raw in declared.items():
         if not isinstance(raw, dict) or not raw.get("type"):
             raise SiteConfigError(f"{origin}: host {key!r} needs a `type`")
         params = raw.get("parameters") or {}
@@ -77,7 +93,8 @@ def parse(data: Any, origin: str = "site configuration") -> SiteConfig:
     tags = (data.get("runners") or {}).get("tags") or []
     if not all(isinstance(t, str) for t in tags):
         raise SiteConfigError(f"{origin}: runner tags must be strings")
-    return SiteConfig(data["site"], hosts, tuple(tags))
+    storage = hosts.pop("hub storage", None) if hub.get("storage") else None
+    return SiteConfig(data["site"], hosts, tuple(tags), hub.get("url"), storage)
 
 
 def load(path: str | Path) -> SiteConfig:

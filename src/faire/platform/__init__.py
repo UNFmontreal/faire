@@ -15,6 +15,7 @@ OPERATIONS = (
     "ensure_repository",
     "protect_branch",
     "protect_tag",
+    "set_merge_policy",
     "set_variable",
     "ensure_pull_request",
     "trigger_pipeline",
@@ -105,6 +106,11 @@ class Platform(ABC):
         """Allow creating matching tags only to maintainers or the automation identity."""
 
     @abstractmethod
+    def set_merge_policy(self, repo: Repository) -> None:
+        """Allow a pull request to be merged only when its pipeline has passed, and only as a
+        merge commit (never squashed or rebased: the run records in the commits must survive)."""
+
+    @abstractmethod
     def set_variable(
         self,
         repo: Repository,
@@ -128,6 +134,10 @@ class Platform(ABC):
         self, repo: Repository, source: str, target: str, title: str, description: str
     ) -> PullRequest:
         """Open a pull request, or update the open one for the same branches."""
+
+    @abstractmethod
+    def open_pull_requests(self, repo: Repository) -> list[PullRequest]:
+        """The pull requests of the repository that are still open."""
 
     @abstractmethod
     def file_url(self, repo: Repository, ref: str, path: str) -> str:

@@ -17,6 +17,9 @@ dependencies = [
   "jsonschema>=4.21",
   "python-gitlab>=4.4",
   "pyyaml>=6",
+  # DataLad 1.x drives patool with arguments patool 4 does not accept; archive extraction
+  # (git-annex archive remotes, `add-archive-content`) needs patool 3 or older
+  "patool>=1.7,<4",
 ]
 
 [project.optional-dependencies]

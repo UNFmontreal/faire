@@ -33,3 +33,11 @@ def load(root: str | Path) -> StudyLayout:
         layout.get("default", "{id}"),
         dict(layout.get("overrides") or {}),
     )
+
+
+def path_for(item, layout: StudyLayout | None = None) -> str:
+    """Where a dataset (or an instrument instance) is registered in the study superdataset."""
+    layout = layout or StudyLayout("", "madmp.json", "sites")
+    if item.is_instance:
+        return f"{layout.path_of(item.stream)}/{item.instance}"
+    return layout.path_of(item.dataset_id)

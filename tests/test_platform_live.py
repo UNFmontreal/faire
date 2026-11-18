@@ -8,6 +8,7 @@ uniquely named subgroup and deletes it afterwards.
 import os
 import uuid
 
+import gitlab
 import pytest
 
 from faire.platform.gitlab import GitLabPlatform
@@ -116,3 +117,156 @@ class TestGitLabLive(PlatformConformance):
             platform, renderer.render_yaml(plan, {"a": ["site-a"], "b": ["site-b"]})
         )
         assert result.valid, result.errors
+
+
+# The instance's shared runner only runs a few images (alpine among them), so the study's
+# validation job runs in alpine and installs the tool from its repository.
+REF = os.environ.get("FAIRE_TEST_REF", "76b4c9b")
+ALPINE_JOB = f"""  image: alpine:3
+  before_script:
+    - apk add --no-cache python3 py3-pip git
+    - pip install --break-system-packages --no-cache-dir "git+https://github.com/UNFmontreal/faire@{REF}"
+"""
+
+
+def wait_for_pipeline(project, mr_iid, timeout=900):
+    """The merge request's newest pipeline once it has finished."""
+    import time
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        mr = project.mergerequests.get(mr_iid)
+        pipeline = mr.head_pipeline
+        if pipeline and pipeline["status"] in ("success", "failed", "canceled"):
+            return mr, pipeline["status"]
+        time.sleep(10)
+    raise AssertionError(f"no finished pipeline for merge request {mr_iid} in {timeout}s")
+
+
+def traces(project, mr):
+    """Job logs of the merge request's pipeline, to show why a pipeline failed."""
+    out = []
+    for job in project.pipelines.get(mr.head_pipeline["id"]).jobs.list(get_all=True):
+        trace = project.jobs.get(job.id).trace().decode(errors="replace")
+        out.append(f"--- {job.name} ({job.status})\n{trace[-1500:]}")
+    return "\n".join(out)
+
+
+def test_invalid_madmp_edit_cannot_be_merged_and_a_valid_one_can(platform, tmp_path):
+    import json
+    import subprocess
+    from pathlib import Path
+
+    from faire import validate as validation
+
+    root = Path(__file__).parent.parent
+    document = json.loads((root / "tests/data/single_site.json").read_text())
+    assert validation.validate(document) == []
+
+    def git(*args):
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+
+    def write(doc):
+        (tmp_path / "madmp.json").write_text(json.dumps(doc, indent=2) + "\n")
+
+    repo = platform.ensure_repository(platform.ensure_group("grp").path, "study")
+    git("init", "-q", "-b", "main")
+    git("config", "user.name", "Test")
+    git("config", "user.email", "test@example.org")
+    template = (root / "templates/study/template/.gitlab-ci.yml").read_text()
+    assert "  image: $FAIRE_IMAGE\n" in template
+    (tmp_path / ".gitlab-ci.yml").write_text(
+        template.replace("  image: $FAIRE_IMAGE\n", ALPINE_JOB)
+    )
+    write(document)
+    git("add", ".")
+    git("commit", "-q", "-m", "study")
+    with platform.git_auth():
+        git("push", "-q", repo.url, "main")
+    platform.protect_branch(repo, "main")
+    platform.set_merge_policy(repo)
+
+    valid = json.loads(json.dumps(document))
+    valid["dmp"]["title"] = "A better title"
+    invalid = json.loads(json.dumps(document))
+    del invalid["dmp"]["contact"]
+    assert validation.validate(invalid), "the edit must be invalid"
+    numbers = {}
+    for branch, doc in (("edit-valid", valid), ("edit-invalid", invalid)):
+        git("checkout", "-q", "-b", branch, "main")
+        write(doc)
+        git("commit", "-q", "-am", branch)
+        with platform.git_auth():
+            git("push", "-q", repo.url, branch)
+        numbers[branch] = platform.ensure_pull_request(repo, branch, "main", branch, "").number
+
+    project = platform.gl.projects.get(f"{repo.group}/{repo.name}")
+    bad, bad_status = wait_for_pipeline(project, numbers["edit-invalid"])
+    assert bad_status == "failed", traces(project, bad)
+    assert "faire validate" in traces(project, bad)  # it failed in the check, not before it
+    assert "contact" in traces(project, bad)  # and the violation is shown
+    assert bad.detailed_merge_status != "mergeable"
+    with pytest.raises(gitlab.exceptions.GitlabError) as refused:
+        bad.merge()
+    assert refused.value.response_code in (405, 406)  # not mergeable: its pipeline failed
+
+    good, good_status = wait_for_pipeline(project, numbers["edit-valid"])
+    assert good_status == "success", traces(project, good)
+    good.merge()
+    assert project.mergerequests.get(numbers["edit-valid"]).state == "merged"
+
+
+def wait_for_branch_pipeline(project, ref, timeout=600):
+    import time
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        pipelines = project.pipelines.list(ref=ref, get_all=False)
+        if pipelines and pipelines[0].status in ("success", "failed", "canceled"):
+            return project.pipelines.get(pipelines[0].id)
+        time.sleep(8)
+    raise AssertionError(f"no finished pipeline on {ref} in {timeout}s")
+
+
+def test_protected_variable_is_visible_to_sample_branches_only(platform, tmp_path):
+    import subprocess
+
+    from faire.bootstrap import PROTECTED_BRANCHES, SAMPLE_BRANCHES
+
+    def git(*args):
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+
+    repo = platform.ensure_repository(platform.ensure_group("grp").path, "dataset")
+    git("init", "-q", "-b", "main")
+    git("config", "user.name", "Test")
+    git("config", "user.email", "test@example.org")
+    (tmp_path / ".gitlab-ci.yml").write_text(
+        'probe:\n  image: alpine:3\n  script:\n    - echo "secret-length:${#STORAGE_SECRET}"\n'
+    )
+    git("add", ".")
+    git("commit", "-q", "-m", "probe")
+    with platform.git_auth():
+        git("push", "-q", repo.url, "main")
+    # what `faire init` configures: the tool's branch patterns protected, the secret protected
+    for pattern in PROTECTED_BRANCHES:
+        platform.protect_branch(repo, pattern, approvals=0)
+    platform.protect_branch(repo, SAMPLE_BRANCHES, approvals=0)
+    platform.set_variable(repo, "STORAGE_SECRET", "not-a-real-secret", protected_refs_only=True)
+    for branch in ("feature/subject-01", "tweak-by-someone"):
+        git("checkout", "-q", "-b", branch, "main")
+        git("commit", "-q", "--allow-empty", "-m", branch)
+        with platform.git_auth():
+            git("push", "-q", repo.url, branch)
+
+    project = platform.gl.projects.get(f"{repo.group}/{repo.name}")
+
+    def seen(branch):
+        pipeline = wait_for_branch_pipeline(project, branch)
+        log = project.jobs.get(pipeline.jobs.list()[0].id).trace().decode(errors="replace")
+        assert pipeline.status == "success", log
+        return "secret-length:17\n" in log.replace("\r", ""), "secret-length:0\n" in log.replace(
+            "\r", ""
+        )
+
+    assert seen("feature/subject-01") == (True, False)  # a sample branch reads the secret
+    assert seen("tweak-by-someone") == (False, True)  # an arbitrary branch does not

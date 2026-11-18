@@ -1,7 +1,11 @@
 # Union merge for list-like files that several sites append to without conflict.
 *.tsv merge=union
 CHANGES merge=union
-# Small text stays in git.
+# Small text stays in git; the attributes themselves must, or they apply to nobody.
+.gitattributes annex.largefiles=nothing
+.gitmodules annex.largefiles=nothing
+.gitmodules merge=union
+CHANGES annex.largefiles=nothing
 *.md annex.largefiles=nothing
 .faire/** annex.largefiles=nothing
 LICENSE annex.largefiles=nothing
