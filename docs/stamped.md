@@ -46,5 +46,7 @@ are not machine-checked.
 | may/004 composition mechanism | MAY | Yes | git submodules |
 | may/005 navigation tooling | MAY | Partial | `faire stage`, `faire plan`; no browser |
 
-Outcome: 31 of 36 items answered Yes or Yes (checked) or Partial for MUSTs as above; no MUST is
-answered No. The one No (should/006) is outside the tool's scope.
+Outcome: 26 Yes, 9 Partial, 1 No. No MUST is answered No; three MUSTs (must/011, 012, 014) are
+Partial because they depend on what a domain template or a study adds. The one No (should/006)
+is outside the tool's scope. The checklist was read on 2026-11-18; its item texts were
+paraphrased from a summary, so the wording above is not verbatim.

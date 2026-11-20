@@ -5,6 +5,81 @@ plan becomes a DataLad dataset; processing, review, distribution, release and ar
 commands that CI jobs and people run alike. Everything below works against the example in
 `examples/madmp/`.
 
+## Overview
+
+The ma-DMP is the single input. `faire` turns it into repositories, runs processing, moves
+content between hosts as the lifecycle advances, and writes facts back to the plan.
+
+```mermaid
+flowchart LR
+    DMP[/"ma-DMP<br/>madmp.json"/] --> INIT["faire init"]
+    SITE[/"site config<br/>sites/&lt;site&gt;.yaml"/] --> INIT
+    TPL[/"dataset templates<br/>pinned versions"/] --> INIT
+    INIT --> STUDY["study superdataset"]
+    STUDY --> DS1["dataset<br/>(source)"]
+    STUDY --> DS2["dataset<br/>(derived)"]
+    STUDY --> INS["instrument<br/>instances"]
+    INIT -. "repositories, protection" .-> PF[("DevOps platform<br/>GitLab adapter")]
+    DS1 -- "sourcedata/" --> DS2
+    DS2 --> DIST["faire sync<br/>distributions"]
+    DIST --> HOSTS[("hosts:<br/>storage, release,<br/>archive")]
+    DIST -- "release facts" --> DMP
+```
+
+### Infrastructure
+
+One platform orchestrates the jobs. Sites hold the data and run the jobs tagged for them; in a
+federated study the hub is the only place sites exchange history.
+
+```mermaid
+flowchart TB
+    subgraph PLAT["DevOps platform (one per study)"]
+        REPOS[("repositories<br/>study + datasets")]
+        CI["CI orchestration<br/>runner tags by site"]
+        PROT["branch protection<br/>1 approval, merge commits"]
+    end
+    subgraph A["Site A"]
+        RA["runner [site-a]"]
+        SA[("site storage")]
+        INS_A["instruments A"]
+    end
+    subgraph B["Site B"]
+        RB["runner [site-b]"]
+        SB[("site storage")]
+        INS_B["instruments B"]
+    end
+    HUB[("hub<br/>bare repos + annex")]
+    REL[("release host<br/>e.g. Zenodo")]
+    ARC[("archival host<br/>directory")]
+
+    CI --> RA
+    CI --> RB
+    INS_A --> RA --> SA
+    INS_B --> RB --> SB
+    RA <-- "dev, main, pilot,<br/>git-annex" --> HUB
+    RB <-- "dev, main, pilot,<br/>git-annex" --> HUB
+    RA -- "release" --> REL
+    RB -- "release" --> REL
+    RA -- "archive" --> ARC
+    REPOS --- CI
+    PROT --- REPOS
+```
+
+### Repository structure
+
+```mermaid
+flowchart TD
+    S["study<br/>madmp.json, sites/, .gitlab-ci.yml"]
+    S --> D1["repos/dicoms-A<br/>(instrument instance)"]
+    S --> D2["repos/dicoms-B<br/>(instrument instance)"]
+    S --> D3["repos/standardized"]
+    S --> D4["repos/derivatives"]
+    D1 -. "sourcedata/" .-> D3
+    D2 -. "sourcedata/" .-> D3
+    D3 -. "sourcedata/" .-> D4
+    D4 --- R[".faire/rules.yaml<br/>container, command,<br/>inputs, outputs"]
+```
+
 ## Quick-start (local only, no platform)
 
 ```sh quickstart
@@ -82,6 +157,37 @@ A sample goes `collection` (indexed in a source dataset), `review` (pull request
 branch), `accepted` (merged into `dev`), `release` (tagged), `archival`. Samples marked pilot go
 to the long-lived `pilot` branch, never to `dev`, and their content never leaves the site.
 
+```mermaid
+stateDiagram-v2
+    [*] --> collection: faire index
+    collection --> review: faire stage (pull request)
+    review --> accepted: merge into dev
+    accepted --> release: faire release (tag)
+    release --> archival: faire archive
+    archival --> [*]
+    collection --> pilot: marked pilot
+    pilot --> pilot: stays on site
+```
+
+Every stage has its own distributions, so content moves only as far as the stage allows:
+
+```mermaid
+sequenceDiagram
+    actor P as Person / CI
+    participant D as Dataset
+    participant PF as Platform
+    participant H as Stage hosts
+    P->>D: faire index / run
+    D->>PF: push sample branch, open PR
+    PF->>PF: blocking checks + 1 human approval
+    PF->>D: merge into dev
+    P->>H: faire sync --stage accepted
+    P->>D: faire release vN (tag all datasets)
+    P->>H: faire sync --stage release --tag vN
+    H-->>D: where-is recorded (git-annex)
+    D-->>PF: facts written back to ma-DMP
+```
+
 ```sh
 faire index INCOMING --stream dicoms --madmp madmp.json --site a --sites-dir sites
 faire stage --dataset DIR
@@ -118,6 +224,16 @@ branches and tags are child commits whose `.gitmodules` use relative addresses. 
 clone `<archive>/study.git`, check out a branch tracking `origin/main` reset to the release tag,
 `datalad get -n -r .`, enable the archive remote of each dataset, `datalad get` content.
 
+```mermaid
+flowchart LR
+    W["workspace<br/>study + datasets"] --> R["rewrite commits:<br/>child commit with relative<br/>.gitmodules (../repo.git)"]
+    R --> G[("archive/&lt;repo&gt;.git<br/>branches, tags, git-annex")]
+    W -- "content selected by<br/>archival distributions" --> C[("archive/&lt;repo&gt;<br/>annex content")]
+    G --> X["clone archive/study.git<br/>datalad get -n -r ."]
+    C --> X
+    X --> Y["restored study,<br/>no platform needed"]
+```
+
 ## Federation
 
 Sites exchange history only through the hub. `faire sync --stage accepted --workspace ws ...`
@@ -128,6 +244,23 @@ A site joins by running `init` after the first site synchronised: federated data
 installed from the hub, the site's own instruments are added. Release and archival are started by
 the coordinator and delivered by each site (library: `faire.federation`: `start_release`,
 `deliver`, `finish`); only the coordinator writes the ma-DMP.
+
+```mermaid
+sequenceDiagram
+    participant A as Site A (coordinator)
+    participant H as Hub
+    participant B as Site B
+    A->>H: exchange: merge + push dev, main, pilot, git-annex
+    B->>H: exchange: merge + push
+    H-->>A: announce refs show B is behind?
+    A->>A: start_release (refuses if a site lags)
+    A->>H: tag vN on every federated dataset
+    A->>A: deliver own content to release host
+    B->>H: fetch tag vN
+    B->>B: deliver own content to release host
+    A->>A: finish: all sites delivered, mint identifiers
+    A->>H: write release record to ma-DMP
+```
 
 ## Platform setup and required secrets
 

@@ -136,8 +136,8 @@
 
 ## 12. End-to-end and documentation
 
-- [ ] 12.1 Add a single-site end-to-end test on the test platform: bootstrap a three-dataset example, push one pilot and one production sample, merge through the chain, release, and check the ma-DMP release records
-- [ ] 12.2 Add a two-site end-to-end test with a hub: each site accepts one sample, both synchronise, the coordinator releases, and the release completes with files from both sites
-- [ ] 12.3 Write user documentation (profile reference, site configuration, bootstrap, processing rules, lifecycle and pilot stream, distribution, federation, platform setup, required secrets) and verify every documented command runs against the example project
-- [ ] 12.5 Run the STAMPED checklist against the example project and record the outcome next to the conformance table in the documentation
-- [ ] 12.4 Publish the example ma-DMPs and reference templates with the documentation and verify the quick-start works from a clean checkout in local-only mode
+- [x] 12.1 Add a single-site end-to-end test on the test platform: bootstrap a three-dataset example, push one pilot and one production sample, merge through the chain, release, and check the ma-DMP release records
+- [x] 12.2 Add a two-site end-to-end test with a hub: each site accepts one sample, both synchronise, the coordinator releases, and the release completes with files from both sites
+- [x] 12.3 Write user documentation (profile reference, site configuration, bootstrap, processing rules, lifecycle and pilot stream, distribution, federation, platform setup, required secrets) and verify every documented command runs against the example project
+- [x] 12.5 Run the STAMPED checklist against the example project and record the outcome next to the conformance table in the documentation
+- [x] 12.4 Publish the example ma-DMPs and reference templates with the documentation and verify the quick-start works from a clean checkout in local-only mode
